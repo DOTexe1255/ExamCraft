@@ -25,6 +25,18 @@ const Index = () => {
           </svg>
           Teacher Dashboard
         </Link>
+
+        <div className="pt-4 border-t border-white/30 mt-6">
+          <p className="text-center text-sm text-gray-600 mb-3">Access your account</p>
+          <div className="grid grid-cols-2 gap-4">
+            <Link to="/login" className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 bg-white/90 text-emerald-600 rounded-xl font-semibold hover:shadow-md transition">
+              Sign In
+            </Link>
+            <Link to="/register" className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 bg-emerald-600 text-white rounded-xl font-semibold hover:shadow-md transition">
+              Register
+            </Link>
+          </div>
+        </div>
       </div>
     </div>
   );

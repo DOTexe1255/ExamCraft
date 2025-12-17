@@ -5,15 +5,16 @@ import { HashRouter, Route, Routes } from "react-router-dom";
 import Index from "./components/Index";           // Your landing page
 import StudentDashboard from "./components/StudentDashboard";
 import TeacherDashboard from "./components/TeacherDashboard";
-// import Login from "./components/Login";
-// import Register from "./components/Register";
+import LoginPage from "./components/Login";
+import RegisterPage from "./components/Register";
 
 const App = () => {
   return (
     <HashRouter>
       <Routes>
         <Route path="/" element={<Index />} />
-        {/* <Route path="/login" element={<Login />} /> */}
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
         <Route path="/student-dashboard" element={<StudentDashboard />} />
         <Route path="/teacher-dashboard" element={<TeacherDashboard />} />
       </Routes>
