@@ -2,7 +2,7 @@ import React from 'react'
 
 const Page1 = () => {
   return (
-    <div style={{ color: 'red' }}>page1</div>
+    <div className="text-3xl font-bold underline">page1</div>
   )
 }
 
