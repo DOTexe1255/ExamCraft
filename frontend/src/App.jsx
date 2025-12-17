@@ -1,13 +1,21 @@
 import './App.css'
-import Page1 from './components/Page1.jsx'
 
-function App() {
-  
+import React from "react";
+import { HashRouter, Route, Routes } from "react-router-dom";
+import Index from "./components/Index";           // Your landing page
+import StudentDashboard from "./components/StudentDashboard";
+import TeacherDashboard from "./components/TeacherDashboard";
+
+const App = () => {
   return (
-    <>
-      <Page1/>
-    </>
-  )
-}
+    <HashRouter>
+      <Routes>
+        <Route path="/" element={<Index />} />
+        <Route path="/student-dashboard" element={<StudentDashboard />} />
+        <Route path="/teacher-dashboard" element={<TeacherDashboard />} />
+      </Routes>
+    </HashRouter>
+  );
+};
 
-export default App
+export default App;
