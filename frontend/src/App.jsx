@@ -3,8 +3,8 @@ import './App.css'
 import React from "react";
 import { HashRouter, Route, Routes } from "react-router-dom";
 import Index from "./components/Index";           // Your landing page
-import StudentDashboard from "./components/StudentDashboard";
-import TeacherDashboard from "./components/TeacherDashboard";
+import StudentDashboard from "./components/student/StudentDashboard";
+import TeacherDashboard from "./components/teacher/TeacherDashboard";
 import LoginPage from "./components/Login";
 import RegisterPage from "./components/Register";
 
