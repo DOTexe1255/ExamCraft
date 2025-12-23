@@ -1,15 +1,218 @@
+// routes/auth.js
 const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const connectToMySQL = require('../db');
-const registerSchema = require('../models/registerSchema.js');
+const studentregisterSchema = require('../models/studentregisterSchema.js');
+const departmentAdminRegisterSchema = require('../models/departmentAdminRegisterSchema.js');
+const instituteAdminRegisterSchema = require('../models/instituteAdminRegisterSchema.js');
 
 
-// --------------------------------------------------------------------
+// ====================== INSTITUTE ADMIN REGISTRATION ======================
+// POST /api/auth/admin-register
+// Purpose: Create an admin user for an existing institute.
+//
+// Sample JSON:
+// {
+//   "first_name": "Super",
+//   "last_name": "Admin",
+//   "email": "admin@techinst.com",
+//   "password": "password123",
+//   "institute_id": 1,
+//   "phone": "9876543210"
+// }
+router.post('/institute-admin-register', async (req, res) => {
+   const { error, value } = instituteAdminRegisterSchema.validate(req.body, { abortEarly: false });
+  if (error) {
+    return res.status(400).json({
+      message: 'Validation error',
+      details: error.details.map(d => d.message)
+    });
+  }
+  const { first_name, last_name, email, password, institute_id, phone } = req.body;
+
+  if (!first_name || !last_name || !email || !password || !institute_id) {
+    return res.status(400).json({
+      message: 'first_name, last_name, email, password, institute_id are required'
+    });
+  }
+
+  let conn;
+  try {
+    conn = await connectToMySQL();
+
+    // Check email uniqueness
+    const [existing] = await conn.execute(
+      'SELECT user_id FROM users WHERE email = ?',
+      [email]
+    );
+    if (existing.length > 0) {
+      await conn.end();
+      return res.status(409).json({ message: 'Email already registered' });
+    }
+
+    // Verify institute exists
+    const [instRows] = await conn.execute(
+      'SELECT institute_id FROM institutes WHERE institute_id = ?',
+      [institute_id]
+    );
+    if (instRows.length === 0) {
+      await conn.end();
+      return res.status(400).json({ message: 'Invalid institute_id. Create institute first.' });
+    }
+
+    const password_hash = await bcrypt.hash(password, 10);
+
+    const [result] = await conn.execute(
+      `INSERT INTO users
+        (institute_id, department_id, email, password_hash, role, first_name, last_name, phone, is_active)
+       VALUES (?, NULL, ?, ?, 'admin', ?, ?, ?, 1)`,
+      [
+        institute_id,
+        email,
+        password_hash,
+        first_name,
+        last_name,
+        phone || null
+      ]
+    );
+
+    await conn.end();
+
+    return res.status(201).json({
+      message: 'Institute admin created successfully',
+      user_id: result.insertId
+    });
+  } catch (err) {
+    if (conn) await conn.end();
+    console.error('Admin registration error:', err);
+    return res.status(500).json({ message: 'Database error' });
+  }
+});
+
+
+// ====================== DEPARTMENT ADMIN REGISTRATION ======================
+// POST /api/auth/department-user-register
+// Purpose: Create a department-level user.
+// Sample JSON:
+// {
+//   "first_name": "CS",
+//   "last_name": "Head",
+//   "email": "cshead@techinst.com",
+//   "password": "password123",
+//   "role": "department",
+//   "institute_id": 1,
+//   "department_id": 1,
+//   "phone": "9876543212"
+// }
+router.post('/department-admin-register', async (req, res) => {
+   const { error, value } = departmentAdminRegisterSchema.validate(req.body, { abortEarly: false });
+  if (error) {
+    return res.status(400).json({
+      message: 'Validation error',
+      details: error.details.map(d => d.message)
+    });
+  }
+  const {
+    first_name,
+    last_name,
+    email,
+    password,
+    institute_id,
+    department_id,
+    phone
+  } = req.body;
+
+  if (!first_name || !last_name || !email || !password || !institute_id || !department_id) {
+    return res.status(400).json({
+      message: 'first_name, last_name, email, password, institute_id, department_id are required'
+    });
+  }
+
+  let conn;
+  try {
+    conn = await connectToMySQL();
+
+    // Check email uniqueness
+    const [existing] = await conn.execute(
+      'SELECT user_id FROM users WHERE email = ?',
+      [email]
+    );
+    if (existing.length > 0) {
+      await conn.end();
+      return res.status(409).json({ message: 'Email already registered' });
+    }
+
+    // Verify institute exists
+    const [instRows] = await conn.execute(
+      'SELECT institute_id FROM institutes WHERE institute_id = ?',
+      [institute_id]
+    );
+    if (instRows.length === 0) {
+      await conn.end();
+      return res.status(400).json({ message: 'Invalid institute_id. Create institute first.' });
+    }
+
+    // Verify department exists and belongs to this institute
+    const [deptRows] = await conn.execute(
+      'SELECT department_id FROM departments WHERE department_id = ? AND institute_id = ?',
+      [department_id, institute_id]
+    );
+    if (deptRows.length === 0) {
+      await conn.end();
+      return res.status(400).json({
+        message: 'Invalid department_id for this institute. Create department first.'
+      });
+    }
+
+    const password_hash = await bcrypt.hash(password, 10);
+
+    const [result] = await conn.execute(
+      `INSERT INTO users
+        (institute_id, department_id, email, password_hash, role, first_name, last_name, phone, is_active)
+       VALUES (?, ?, ?, ?, 'department', ?, ?, ?, 1)`,
+      [
+        institute_id,
+        department_id,
+        email,
+        password_hash,
+        first_name,
+        last_name,
+        phone || null
+      ]
+    );
+
+    await conn.end();
+
+    return res.status(201).json({
+      message: 'Department user created successfully',
+      user_id: result.insertId
+    });
+  } catch (err) {
+    if (conn) await conn.end();
+    console.error('Department user registration error:', err);
+    return res.status(500).json({ message: 'Database error' });
+  }
+});
+
+
+// ====================== STUDENT REGISTRATION ======================
 // POST /api/auth/register
-router.post('/register', async (req, res) => {
-  const { error, value } = registerSchema.validate(req.body, { abortEarly: false });
+// Purpose: Register a student under existing institute + department.
+// Sample JSON:
+// {
+//   "first_name": "John",
+//   "last_name": "Doe",
+//   "email": "john.doe@techinst.com",
+//   "password": "password123",
+//   "role": "student",
+//   "institute_id": 1,
+//   "department_id": 1,
+//   "phone": "9876543214"
+// }
+router.post('/student-register', async (req, res) => {
+  const { error, value } = studentregisterSchema.validate(req.body, { abortEarly: false });
   if (error) {
     return res.status(400).json({
       message: 'Validation error',
@@ -28,81 +231,100 @@ router.post('/register', async (req, res) => {
     phone
   } = value;
 
+  let conn;
   try {
-    const conn = await connectToMySQL(); // Updated to use connectToMySQL directly
+    conn = await connectToMySQL();
 
-    try {
-      const [existing] = await conn.execute(
-        'SELECT user_id FROM users WHERE email = ?',
-        [email]
-      );
-      if (existing.length > 0) {
-        conn.end(); // Close the connection
-        return res.status(409).json({ message: 'Email already registered' });
-      }
-
-      const password_hash = await bcrypt.hash(password, 10);
-
-      const [result] = await conn.execute(
-        `INSERT INTO users
-          (institute_id, department_id, email, password_hash, role, first_name, last_name, phone, is_active)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)`,
-        [
-          institute_id,
-          department_id || null,
-          email,
-          password_hash,
-          role,
-          first_name,
-          last_name,
-          phone || null
-        ]
-      );
-
-      conn.end(); // Close the connection
-
-      return res.status(201).json({
-        message: 'User registered successfully',
-        user_id: result.insertId
-      });
-    } catch (err) {
-      conn.end(); // Close the connection
-      console.error('Registration DB error:', err); // <---
-      return res.status(500).json({ message: 'Database error' });
+    // Check email uniqueness
+    const [existing] = await conn.execute(
+      'SELECT user_id FROM users WHERE email = ?',
+      [email]
+    );
+    if (existing.length > 0) {
+      await conn.end();
+      return res.status(409).json({ message: 'Email already registered' });
     }
+
+    // Verify institute exists
+    const [instRows] = await conn.execute(
+      'SELECT institute_id FROM institutes WHERE institute_id = ?',
+      [institute_id]
+    );
+    if (instRows.length === 0) {
+      await conn.end();
+      return res.status(400).json({
+        message: 'Invalid institute_id. Please create institute first.'
+      });
+    }
+
+    // Verify department exists under this institute
+    const [deptRows] = await conn.execute(
+      'SELECT department_id FROM departments WHERE department_id = ? AND institute_id = ?',
+      [department_id, institute_id]
+    );
+    if (deptRows.length === 0) {
+      await conn.end();
+      return res.status(400).json({
+        message: 'Invalid department_id for this institute. Create department under the institute first.'
+      });
+    }
+
+    const password_hash = await bcrypt.hash(password, 10);
+
+    const [result] = await conn.execute(
+      `INSERT INTO users
+        (institute_id, department_id, email, password_hash, role, first_name, last_name, phone, is_active)
+       VALUES (?, ?, ?, ?, 'student', ?, ?, ?, 1)`,
+      [
+        institute_id,
+        department_id,
+        email,
+        password_hash,
+        first_name,
+        last_name,
+        phone || null
+      ]
+    );
+
+    await conn.end();
+
+    return res.status(201).json({
+      message: 'Student registered successfully',
+      user_id: result.insertId
+    });
   } catch (err) {
-    console.error('Server error (connection/connectToMySQL):', err); // <---
-    return res.status(500).json({ message: 'Server error' });
+    if (conn) await conn.end();
+    console.error('Student registration error:', err);
+    return res.status(500).json({ message: 'Database error' });
   }
 });
-//-------------------------------------------------------------------------
-// sample register request body
-// {
-//     "first_name": "John",
-//     "last_name": "Doe",
-//     "email": "john@example.com",
-//     "password": "StrongPass123",
-//     "role": "student",
-//     "institute_id": 1,
-//     "department_id": 2,
-//     "phone": "123-456-7890"
-// }
-// ---------------------------------------------------------------------------
-//----------------------------------------------------------------------------
-// POST /api/auth/login
-router.post('/login', async (req, res) => {
-  const { email, password } = req.body;
 
-  // Basic checks
-  if (!email || !password) {
-    return res.status(400).json({ message: 'Email and password are required' });
+
+// ====================== UNIFIED LOGIN (ALL ROLES) ======================
+// POST /api/auth/login
+// Purpose: Authenticate admin / department / student and issue JWT.
+// Sample JSON (admin):
+// { "email": "admin@techinst.com", "password": "password123", "role": "admin" }
+// Sample JSON (department):
+// { "email": "cshead@techinst.com", "password": "password123", "role": "department" }
+// Sample JSON (student):
+// { "email": "john.doe@techinst.com", "password": "password123", "role": "student" }
+router.post('/login', async (req, res) => {
+  const { email, password, role } = req.body;
+
+  if (!email || !password || !role) {
+    return res.status(400).json({ message: 'Email, password, and role are required' });
+  }
+
+  const allowedRoles = ['admin', 'department', 'student'];
+  if (!allowedRoles.includes(role)) {
+    return res.status(400).json({ message: 'Invalid role' });
   }
 
   let conn;
   try {
-    conn = await connectToMySQL(); // get connection
+    conn = await connectToMySQL();
 
-    // 1) Find user by email
     const [rows] = await conn.execute(
       'SELECT user_id, email, password_hash, role, first_name, last_name, is_active FROM users WHERE email = ?',
       [email]
@@ -115,20 +337,22 @@ router.post('/login', async (req, res) => {
 
     const user = rows[0];
 
-    // 2) Check active flag
+    if (user.role !== role) {
+      await conn.end();
+      return res.status(403).json({ message: 'Role mismatch for this account' });
+    }
+
     if (!user.is_active) {
       await conn.end();
       return res.status(403).json({ message: 'Account is inactive' });
     }
 
-    // 3) Compare password
     const isMatch = await bcrypt.compare(password, user.password_hash);
     if (!isMatch) {
       await conn.end();
       return res.status(401).json({ message: 'Invalid email or password' });
     }
 
-    // 4) Optionally update last_login
     await conn.execute(
       'UPDATE users SET last_login = NOW() WHERE user_id = ?',
       [user.user_id]
@@ -136,7 +360,6 @@ router.post('/login', async (req, res) => {
 
     await conn.end();
 
-    // 5) Create JWT token (only minimal info inside)
     const payload = {
       user_id: user.user_id,
       role: user.role
@@ -146,9 +369,8 @@ router.post('/login', async (req, res) => {
       payload,
       process.env.JWT_SECRET || 'default_secret',
       { expiresIn: process.env.JWT_EXPIRES_IN || '1h' }
-    ); // [web:146][web:144]
+    );
 
-    // Return only token and maybe very small info
     return res.status(200).json({
       message: 'Login successful',
       token
@@ -160,11 +382,4 @@ router.post('/login', async (req, res) => {
   }
 });
 
-//------------------------------------------------------------------------
-// sample login express.request
-// {
-//     "email": "abc@example.com",
-//     "password": "StrongPass123"
-// }
-// ---------------------------------------------------------------------------
 module.exports = router;
