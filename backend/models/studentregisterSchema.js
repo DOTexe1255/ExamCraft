@@ -1,15 +1,15 @@
-// validation/registerSchema.js
 const Joi = require('joi');
 
-const registerSchema = Joi.object({
+// Validation schema for STUDENT registration
+const studentregisterSchema = Joi.object({
   first_name: Joi.string().min(2).max(50).required(),
   last_name: Joi.string().min(2).max(50).required(),
   email: Joi.string().email().max(100).required(),
   password: Joi.string().min(6).max(100).required(),
-  role: Joi.string().valid('admin', 'department', 'student').required(),
+  role: Joi.string().valid('student').required(),
   institute_id: Joi.number().integer().required(),
-  department_id: Joi.number().integer().allow(null).optional(),
+  department_id: Joi.number().integer().required(),
   phone: Joi.string().max(15).allow(null, '').optional()
 });
 
-module.exports = registerSchema;
+module.exports = studentregisterSchema;
