@@ -11,11 +11,10 @@ app.use(express.json()); // Middleware to parse JSON request bodies
 // Connect to MySQL using the connectToMySQL function from db.js
 connectToMySQL();
 
-// Route for authentication only (kept as requested)
-app.use('/api/auth', require('./routes/auth'));
-
-// Route for user data
-app.use('/api/user', require('./routes/userdata'));
+app.use('/api/auth', require('./routes/auth'));          // user auth (admin/department/student)
+app.use('/api/institute', require('./routes/institute')); // institute registration
+app.use('/api/department', require('./routes/department')); // department registration
+app.use('/api/user', require('./routes/userdata'));      // getuserdata via JWT
 
 // Start the server and listen on the defined port
 app.listen(port, () => {
