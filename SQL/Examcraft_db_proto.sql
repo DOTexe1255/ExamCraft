@@ -261,32 +261,145 @@ CREATE TABLE institute_settings (
     FOREIGN KEY (institute_id) REFERENCES institutes(institute_id)
 );
 
--- -- Sample Data
--- INSERT INTO institutes (name, code, contact_email) VALUES 
--- ('Tech Institute', 'TI001', 'admin@techinst.com');
-
--- INSERT INTO departments (institute_id, name, code) VALUES 
--- (1, 'Computer Science', 'CS'),
--- (1, 'Electronics', 'ECE');
-
--- INSERT INTO users (institute_id, department_id, email, password_hash, role, first_name, last_name) VALUES 
--- (1, 1, 'admin@techinst.com', '$2b$10$...', 'admin', 'Admin', 'User'),
--- (1, 1, 'cshead@techinst.com', '$2b$10$...', 'department', 'CS', 'Head'),
--- (1, 1, 'student1@techinst.com', '$2b$10$...', 'student', 'John', 'Doe');
-
--- -- Indexes for performance
--- CREATE INDEX idx_exams_dept_status ON exams(department_id, status);
--- CREATE INDEX idx_users_role_active ON users(role, is_active);
 
 
--- Insert default question types
--- INSERT INTO question_types (type_name, max_marks, has_options) VALUES
--- ('mcq', 1, TRUE),
--- ('true_false', 1, TRUE),
--- ('short_answer', 2, FALSE),
--- ('code', 5, FALSE);
+-- -- ---------------------------------------------------   Sample Data  ------------------------------
 
--- -- Sample subjects
--- INSERT INTO subjects (department_id, subject_code, name) VALUES
--- (1, 'CS101', 'Data Structures'),
--- (1, 'CS102', 'Algorithms');
+-- Sample Data for Exam Craft Testing (Run after creating all tables)
+USE examcraft;
+
+-- 1. Institutes
+INSERT INTO institutes (name, code, address, contact_email, phone) VALUES
+('Tech Institute Pune', 'TI001', 'Pune, Maharashtra', 'admin@techinst.com', '9876543210'),
+('Global Engineering College', 'GEC002', 'Bangalore, Karnataka', 'admin@gec.edu', '9876543211');
+
+-- 2. Departments
+INSERT INTO departments (institute_id, name, code, head_email) VALUES
+(1, 'Computer Science', 'CS', 'cshead@techinst.com'),
+(1, 'Electronics', 'ECE', 'ecehead@techinst.com'),
+(2, 'Information Technology', 'IT', 'ithead@gec.edu');
+
+-- 3. Subjects
+INSERT INTO subjects (department_id, subject_code, name, credits) VALUES
+(1, 'CS101', 'Data Structures', 4),
+(1, 'CS102', 'Algorithms', 4),
+(2, 'ECE101', 'Digital Electronics', 4),
+(3, 'IT101', 'Web Technologies', 4);
+
+-- 4. Question Types (if not inserted earlier)
+INSERT IGNORE INTO question_types (type_name, max_marks, has_options) VALUES
+('mcq', 1, TRUE),
+('true_false', 1, TRUE),
+('short_answer', 2, FALSE),
+('code', 5, FALSE);
+
+-- 5. Users (passwords: 'password123' hashed with bcrypt)
+INSERT INTO users (institute_id, department_id, email, password_hash, role, first_name, last_name, phone, is_active) VALUES
+-- Admins
+(1, NULL, 'admin@techinst.com', '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'admin', 'Super', 'Admin', '9876543210', TRUE),
+(2, NULL, 'gecadmin@gec.edu', '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'admin', 'GEC', 'Admin', '9876543211', TRUE),
+
+-- Department Heads
+(1, 1, 'cshead@techinst.com', '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'department', 'CS', 'Head', '9876543212', TRUE),
+(1, 2, 'ecehead@techinst.com', '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'department', 'ECE', 'Head', '9876543213', TRUE),
+
+-- Students
+(1, 1, 'john.doe@techinst.com', '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'student', 'John', 'Doe', '9876543214', TRUE),
+(1, 1, 'jane.smith@techinst.com', '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'student', 'Jane', 'Smith', '9876543215', TRUE),
+(2, 3, 'alice.it@gec.edu', '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'student', 'Alice', 'IT', '9876543216', TRUE);
+
+-- 6. User Profiles
+INSERT INTO user_profiles (user_id, enrollment_no, employee_id, date_of_birth, gender) VALUES
+(5, 'CS2024001', NULL, '2003-05-15', 'M'),  -- John Doe
+(6, 'CS2024002', NULL, '2003-08-22', 'F'),  -- Jane Smith
+(7, 'IT2024001', NULL, '2004-01-10', 'F');  -- Alice IT
+
+-- 7. Institute Settings
+INSERT INTO institute_settings (institute_id, setting_key, setting_value) VALUES
+(1, 'logo_url', '/uploads/techinst-logo.png'),
+(1, 'max_exam_duration', '120'),
+(1, 'seb_quit_password', 'exam123'),
+(2, 'logo_url', '/uploads/gec-logo.png'),
+(2, 'max_exam_duration', '90');
+
+-- 8. Exams (2 upcoming, 1 completed)
+INSERT INTO exams (institute_id, department_id, subject_id, title, description, start_datetime, duration_minutes, total_marks, max_attempts, status, seb_required, seb_quit_password, instructions, created_by) VALUES
+-- CS Data Structures Midterm (Upcoming)
+(1, 1, 1, 'Data Structures Midterm Exam', 'Midterm covering Arrays, Linked Lists, Stacks', '2025-12-25 10:00:00', 90, 50, 1, 'scheduled', TRUE, 'midterm2025', 'No external resources allowed', 3),
+
+-- ECE Quiz (Active)
+(1, 2, 3, 'Digital Electronics Quiz 1', 'Logic gates and Boolean algebra', '2025-12-23 14:00:00', 45, 25, 1, 'active', TRUE, 'quiz1', 'Use SEB browser only', 4),
+
+-- IT Final Exam (Completed)
+(2, 3, 4, 'Web Technologies Final Exam', 'Final exam results available', '2025-12-20 09:00:00', 120, 100, 1, 'completed', TRUE, 'final2025', 'Results published', 2);
+
+-- 9. Question Bank (Reusable questions)
+INSERT INTO question_bank (subject_id, type_id, question_text, options, correct_answer, difficulty, tags, created_by) VALUES
+(1, 1, 'What is the time complexity of accessing an element in an array?', 
+ '[{"option": "O(1)", "is_correct": true}, {"option": "O(n)", "is_correct": false}, {"option": "O(log n)", "is_correct": false}, {"option": "O(n^2)", "is_correct": false}]', 
+ '[{"option": "O(1)"}]', 'easy', '["arrays", "time_complexity"]', 3),
+ 
+(1, 2, 'Linked lists are better than arrays for frequent insertions/deletions.', 
+ '[{"option": "True", "is_correct": true}, {"option": "False", "is_correct": false}]', 
+ '[{"option": "True"}]', 'medium', '["linked_lists"]', 3);
+
+-- 10. Questions (linked to specific exams)
+INSERT INTO questions (exam_id, type_id, qbank_id, question_text, options, correct_answer, max_marks, order_sequence) VALUES
+(1, 1, 1, 'What is the time complexity of accessing an element in an array?', 
+ '[{"option": "O(1)", "is_correct": true}, {"option": "O(n)", "is_correct": false}, {"option": "O(log n)", "is_correct": false}, {"option": "O(n^2)", "is_correct": false}]', 
+ '[{"option": "O(1)"}]', 2, 1),
+
+(1, 2, 2, 'Linked lists are better than arrays for frequent insertions/deletions.', 
+ '[{"option": "True", "is_correct": true}, {"option": "False", "is_correct": false}]', 
+ '[{"option": "True"}]', 1, 2);
+
+-- 11. Exam Assignments
+INSERT INTO exam_assignments (exam_id, student_id) VALUES
+(1, 5),  -- John Doe - Data Structures
+(1, 6),  -- Jane Smith - Data Structures
+(3, 7);  -- Alice - Web Technologies
+
+-- 12. Exam Attempts (with sample results)
+INSERT INTO exam_attempts (assignment_id, student_id, exam_id, started_at, completed_at, duration_taken, total_score, total_marks, is_submitted, seb_verified) VALUES
+(1, 5, 1, '2025-12-25 10:05:00', '2025-12-25 11:20:00', 4500, 42.00, 50, TRUE, TRUE),
+(2, 6, 1, '2025-12-25 10:07:00', '2025-12-25 11:25:00', 4680, 38.50, 50, TRUE, TRUE),
+(3, 7, 3, '2025-12-20 09:10:00', '2025-12-20 11:05:00', 6600, 85.00, 100, TRUE, TRUE);
+
+-- 13. Student Answers
+INSERT INTO student_answers (attempt_id, question_id, selected_answer, marks_obtained, time_spent) VALUES
+(1, 1, '[{"option": "O(1)"}]', 2.00, 45),  -- John got Q1 correct
+(1, 2, '[{"option": "True"}]', 1.00, 120), -- John got Q2 correct
+(2, 1, '[{"option": "O(n)"}]', 0.00, 60),  -- Jane got Q1 wrong
+(2, 2, '[{"option": "True"}]', 1.00, 90);  -- Jane got Q2 correct
+
+-- 14. Notifications
+INSERT INTO notifications (user_id, title, message, type) VALUES
+(5, 'Exam Reminder', 'Data Structures Midterm tomorrow at 10AM', 'reminder'),
+(6, 'Exam Reminder', 'Data Structures Midterm tomorrow at 10AM', 'reminder'),
+(7, 'Results Available', 'Web Technologies Final Exam results published', 'results_ready');
+
+-- 15. Exam Sessions (Lab batches)
+INSERT INTO exam_sessions (exam_id, lab_name, session_date, capacity, seats_filled) VALUES
+(1, 'Lab A-101', '2025-12-25 10:00:00', 30, 2),
+(1, 'Lab A-102', '2025-12-25 14:00:00', 30, 0);
+
+-- 16. Audit Logs
+INSERT INTO audit_logs (user_id, action, table_name, record_id, ip_address) VALUES
+(3, 'EXAM_CREATED', 'exams', 1, '192.168.1.100'),
+(5, 'EXAM_STARTED', 'exam_attempts', 1, '192.168.1.101');
+
+
+
+-- Check data loaded
+SELECT COUNT(*) FROM users;  -- Should return 7
+SELECT * FROM exams WHERE status = 'scheduled';  -- Upcoming exams
+SELECT u.first_name, e.title, ea.total_score FROM users u 
+JOIN exam_attempts ea ON u.user_id = ea.student_id 
+JOIN exams e ON ea.exam_id = e.exam_id;
+
+
+-- ------------------------------------------------- Sample User Credentials:  ------------------------------------
+
+-- Admin: admin@techinst.com / password123
+-- CS Head: cshead@techinst.com / password123  
+-- Students: john.doe@techinst.com / password123
