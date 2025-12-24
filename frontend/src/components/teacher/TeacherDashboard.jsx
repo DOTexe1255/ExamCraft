@@ -6,7 +6,7 @@ import QuickActions from './QuickActions';
 
 const TeacherDashboard = () => {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-emerald-50 to-cyan-50 p-6">
+    <div className="min-h-screen bg-teacher-bg p-6">
       {/* Header */}
       <Header />
 
