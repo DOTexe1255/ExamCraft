@@ -32,10 +32,10 @@ CREATE TABLE departments (
 CREATE TABLE users (
     user_id INT PRIMARY KEY AUTO_INCREMENT,
     institute_id INT NOT NULL,
-    department_id INT NULL,  -- NULL for admin
+    department_id INT NULL,  -- NULL for institute admin
     email VARCHAR(100) UNIQUE NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
-    role ENUM('admin', 'department', 'student') NOT NULL,
+    role ENUM('institute', 'department', 'student') NOT NULL,
     first_name VARCHAR(50) NOT NULL,
     last_name VARCHAR(50) NOT NULL,
     phone VARCHAR(15),
@@ -296,8 +296,8 @@ INSERT IGNORE INTO question_types (type_name, max_marks, has_options) VALUES
 -- 5. Users (passwords: 'password123' hashed with bcrypt)
 INSERT INTO users (institute_id, department_id, email, password_hash, role, first_name, last_name, phone, is_active) VALUES
 -- Admins
-(1, NULL, 'admin@techinst.com', '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'admin', 'Super', 'Admin', '9876543210', TRUE),
-(2, NULL, 'gecadmin@gec.edu', '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'admin', 'GEC', 'Admin', '9876543211', TRUE),
+(1, NULL, 'admin@techinst.com', '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'institute', 'Super', 'Admin', '9876543210', TRUE),
+(2, NULL, 'gecadmin@gec.edu', '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'institute', 'GEC', 'Admin', '9876543211', TRUE),
 
 -- Department Heads
 (1, 1, 'cshead@techinst.com', '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'department', 'CS', 'Head', '9876543212', TRUE),
