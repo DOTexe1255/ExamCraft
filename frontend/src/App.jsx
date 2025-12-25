@@ -9,6 +9,7 @@ import AdministrationLogin from "./components/AdministrationLogin";
 import AdministrationRegister from "./components/InstituteRegister";
 import StudentLogin from "./components/StudentLogin";
 import InstituteDashboard from "./components/institute/InstituteDashboard";
+import ExamDashboard from './components/exam/ExamDashboard';
 
 const App = () => {
   return (
@@ -21,6 +22,7 @@ const App = () => {
         <Route path="/student-dashboard" element={<StudentDashboard />} />
         <Route path="/department-dashboard" element={<DepartmentDashboard />} />
         <Route path="/institute-dashboard" element={<InstituteDashboard />} />
+        <Route path="/exam/:examId" element={<ExamDashboard />} />
       </Routes>
     </HashRouter>
   );

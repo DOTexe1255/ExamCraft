@@ -1,20 +1,97 @@
-import React from 'react';
+import React, { useState } from 'react';
+import CreateExamModal from './CreateExamModal';
+import AddStudentModal from './AddStudentModal';
 
-const ExamList = () => {
+const ExamList = ({ instituteId, departmentId }) => {
+  const [isCreateExamOpen, setIsCreateExamOpen] = useState(false);
+  const [isAddStudentOpen, setIsAddStudentOpen] = useState(false);
+
+  const handleCreateExam = async (examData) => {
+    try {
+      const response = await fetch('/api/exams', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          // 'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(examData)
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to create exam');
+      }
+
+      const exam = await response.json();
+      setIsCreateExamOpen(false);
+      console.log('✅ Exam created:', exam);
+      // TODO: Refresh exam list, show success toast
+      
+    } catch (error) {
+      console.error('❌ Error creating exam:', error);
+      alert(error.message || 'Failed to create exam');
+    }
+  };
+
+  const handleAddStudent = async (studentData) => {
+    try {
+      const response = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          // 'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(studentData)
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to create student');
+      }
+
+      const student = await response.json();
+      setIsAddStudentOpen(false);
+      console.log('✅ Student created:', student);
+      
+    } catch (error) {
+      console.error('❌ Error creating student:', error);
+      alert(error.message || 'Failed to create student');
+    }
+  };
+
   return (
     <>
       {/* Exams List */}
       <div className="lg:col-span-2">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-xl font-semibold text-gray-900">Your Exams</h2>
-          <button className="px-6 py-3 bg-teacher-600 text-white rounded-xl text-sm font-semibold 
-                            hover:bg-teacher-700 shadow-dashboard hover:shadow-dashboard-hover 
-                            flex items-center gap-2 transition-all duration-300">
-            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            Create Exam
-          </button>
+          <div className="flex items-center gap-3">
+            {/* Create Exam Button */}
+            <button 
+              onClick={() => setIsCreateExamOpen(true)}
+              className="px-4 py-2 bg-teacher-600 text-white rounded-xl text-sm font-semibold 
+                        hover:bg-teacher-700 shadow-dashboard hover:shadow-dashboard-hover 
+                        flex items-center gap-2 transition-all duration-300"
+            >
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Create Exam
+            </button>
+            
+            {/* NEW: Add Student Button */}
+            <button 
+              onClick={() => setIsAddStudentOpen(true)}
+              className="px-4 py-2 bg-student-600 text-white rounded-xl text-sm font-semibold 
+                        hover:bg-student-700 shadow-dashboard hover:shadow-dashboard-hover 
+                        flex items-center gap-2 transition-all duration-300"
+            >
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+              </svg>
+              Add Student
+            </button>
+          </div>
         </div>
         
         <div className="space-y-4">
@@ -154,6 +231,23 @@ const ExamList = () => {
           </div>
         </div>
       </div>
+
+      {/* Modals */}
+      <CreateExamModal
+        isOpen={isCreateExamOpen}
+        onClose={() => setIsCreateExamOpen(false)}
+        onSubmit={handleCreateExam}
+        instituteId={instituteId}
+        departmentId={departmentId}
+      />
+
+      <AddStudentModal
+        isOpen={isAddStudentOpen}
+        onClose={() => setIsAddStudentOpen(false)}
+        onSubmit={handleAddStudent}
+        instituteId={instituteId}
+        departmentId={departmentId}
+      />
     </>
   );
 };
