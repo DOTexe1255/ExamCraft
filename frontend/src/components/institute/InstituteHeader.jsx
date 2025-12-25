@@ -1,6 +1,19 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 
 const InstituteHeader = () => {
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    // Clear any auth tokens/localStorage if needed
+    localStorage.removeItem('token');
+    localStorage.removeItem('userRole');
+    localStorage.removeItem('instituteId');
+    
+    // Redirect to home page
+    navigate('/', { replace: true });
+  };
+
   return (
     <>
       {/* Header */}
@@ -21,9 +34,12 @@ const InstituteHeader = () => {
             </svg>
             Settings
           </button>
-          <button className="px-4 py-2 border-2 border-gray-200 rounded-xl text-sm font-medium 
-                            text-gray-700 hover:bg-gray-50 hover:border-institute-300 
-                            hover:shadow-dashboard flex items-center gap-2 transition-all duration-200">
+          <button 
+            onClick={handleLogout}
+            className="px-4 py-2 border-2 border-gray-200 rounded-xl text-sm font-medium 
+                      text-gray-700 hover:bg-gray-50 hover:border-institute-300 
+                      hover:shadow-dashboard flex items-center gap-2 transition-all duration-200"
+          >
             <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
             </svg>
