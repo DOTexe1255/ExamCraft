@@ -208,11 +208,11 @@ const StudentLogin = () => {
               </button>
             </form>
 
-            <p className="text-center mt-6 pt-4 text-sm text-gray-600 border-t border-gray-200">
+            {/*<p className="text-center mt-6 pt-4 text-sm text-gray-600 border-t border-gray-200">
               <Link to="/" className="font-semibold text-emerald-600 hover:text-emerald-700 hover:underline">
                 ← Back to Home
               </Link>
-            </p>
+            </p>*/}
           </div>
         </div>
       </div>
