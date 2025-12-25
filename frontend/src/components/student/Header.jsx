@@ -1,6 +1,19 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 
 const Header = () => {
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    // Clear student auth tokens/localStorage
+    localStorage.removeItem('studentToken');
+    localStorage.removeItem('studentId');
+    localStorage.removeItem('studentRole');
+    
+    // Redirect to student login page
+    navigate('/student-login', { replace: true });
+  };
+
   return (
     <>
       {/* Header */}
@@ -12,9 +25,12 @@ const Header = () => {
           <p className="text-gray-600 mt-1">Welcome back, John Doe</p>
           <p className="text-sm text-student-600 font-medium mt-1">CS2024001 (Computer Science)</p>
         </div>
-        <button className="px-4 py-2 border-2 border-gray-200 rounded-xl text-sm font-semibold 
-                          text-gray-700 hover:bg-gray-50 hover:border-student-300 
-                          hover:shadow-dashboard flex items-center gap-2 transition-all duration-200">
+        <button 
+          onClick={handleLogout}
+          className="px-4 py-2 border-2 border-gray-200 rounded-xl text-sm font-semibold 
+                    text-gray-700 hover:bg-gray-50 hover:border-student-300 
+                    hover:shadow-dashboard flex items-center gap-2 transition-all duration-200"
+        >
           <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
           </svg>

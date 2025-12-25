@@ -1,6 +1,14 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 
 const AvailableExams = () => {
+  const navigate = useNavigate();
+
+  const handleStartExam = (examId) => {
+    // HashRouter navigation: #/exam/exam-1
+    navigate(`/exam/${examId}`);
+  };
+
   return (
     <>
       {/* Available Exams */}
@@ -37,10 +45,13 @@ const AvailableExams = () => {
                 </div>
               </div>
             </div>
-            <button className="w-full px-6 py-3 bg-student-600 text-white rounded-xl text-sm font-semibold 
-                              hover:bg-student-700 shadow-dashboard hover:shadow-dashboard-hover 
-                              flex items-center justify-center gap-2 transition-all duration-300 
-                              group-hover:scale-[1.05]">
+            <button 
+              onClick={() => handleStartExam('exam-1')}
+              className="w-full px-6 py-3 bg-student-600 text-white rounded-xl text-sm font-semibold 
+                        hover:bg-student-700 shadow-dashboard hover:shadow-dashboard-hover 
+                        flex items-center justify-center gap-2 transition-all duration-300 
+                        group-hover:scale-[1.05]"
+            >
               <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
               </svg>
@@ -77,10 +88,13 @@ const AvailableExams = () => {
                 </div>
               </div>
             </div>
-            <button className="w-full px-6 py-3 border-2 border-student-200 text-student-700 
-                              rounded-xl text-sm font-semibold hover:bg-student-50 
-                              hover:border-student-400 hover:shadow-dashboard 
-                              flex items-center justify-center gap-2 transition-all duration-300">
+            <button 
+              onClick={() => handleStartExam('exam-2')}
+              className="w-full px-6 py-3 border-2 border-student-200 text-student-700 
+                        rounded-xl text-sm font-semibold hover:bg-student-50 
+                        hover:border-student-400 hover:shadow-dashboard 
+                        flex items-center justify-center gap-2 transition-all duration-300"
+            >
               Resume Exam
             </button>
           </div>

@@ -1,15 +1,77 @@
-import React from 'react';
+import React, { useState } from 'react';
+import AddDepartmentModal from './AddDepartmentModal';
 
-const DepartmentList = () => {
+const DepartmentList = ({ instituteId }) => {
+  const [isAddDepartmentOpen, setIsAddDepartmentOpen] = useState(false);
+
+  const handleAddDepartment = async ({ departmentData, departmentAdminData }) => {
+    try {
+      // 1. Create department first
+      const departmentResponse = await fetch('/api/departments', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          // Add your auth token here if needed
+          // 'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify(departmentData)
+      });
+
+      if (!departmentResponse.ok) {
+        const errorData = await departmentResponse.json();
+        throw new Error(errorData.message || 'Failed to create department');
+      }
+
+      const department = await departmentResponse.json();
+      const departmentId = department.id;
+
+      // 2. Create department admin if head details provided
+      if (departmentAdminData) {
+        const adminData = {
+          ...departmentAdminData,
+          department_id: departmentId
+        };
+
+        const adminResponse = await fetch('/api/auth/register', {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            // 'Authorization': `Bearer ${localStorage.getItem('token')}`
+          },
+          body: JSON.stringify(adminData)
+        });
+
+        if (!adminResponse.ok) {
+          console.warn('Department admin creation failed (department created):', await adminResponse.json());
+          // Department was created successfully, admin can be added later
+        }
+      }
+
+      // Success
+      setIsAddDepartmentOpen(false);
+      console.log('✅ Department created:', department);
+      
+      // TODO: Refresh departments list, show success toast
+      window.location.reload(); // Quick refresh for demo
+      
+    } catch (error) {
+      console.error('❌ Error creating department:', error);
+      alert(error.message || 'Failed to create department');
+    }
+  };
+
   return (
     <>
       {/* Departments & Exams List */}
       <div className="lg:col-span-2">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-xl font-semibold text-gray-900">Departments Overview</h2>
-          <button className="px-4 py-2 bg-institute-600 text-white rounded-xl text-sm font-semibold 
-                            hover:bg-institute-700 shadow-dashboard hover:shadow-dashboard-hover 
-                            flex items-center gap-2 transition-all duration-300">
+          <button 
+            onClick={() => setIsAddDepartmentOpen(true)}
+            className="px-4 py-2 bg-institute-600 text-white rounded-xl text-sm font-semibold 
+                      hover:bg-institute-700 shadow-dashboard hover:shadow-dashboard-hover 
+                      flex items-center gap-2 transition-all duration-300"
+          >
             <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
@@ -87,6 +149,14 @@ const DepartmentList = () => {
           </div>
         </div>
       </div>
+
+      {/* Using your existing AddDepartmentModal */}
+      <AddDepartmentModal
+        isOpen={isAddDepartmentOpen}
+        onClose={() => setIsAddDepartmentOpen(false)}
+        onSubmit={handleAddDepartment}
+        instituteId={instituteId}
+      />
     </>
   );
 };
