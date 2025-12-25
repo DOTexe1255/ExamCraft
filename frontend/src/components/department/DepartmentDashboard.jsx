@@ -4,7 +4,7 @@ import StatesCards from './StatesCards';
 import ExamList from './ExamList';
 import QuickActions from './QuickActions';
 
-const TeacherDashboard = () => {
+const DpartmentDashboard = () => {
   return (
     <div className="min-h-screen bg-teacher-bg p-6">
       {/* Header */}
@@ -25,4 +25,4 @@ const TeacherDashboard = () => {
   );
 };
 
-export default TeacherDashboard;
+export default DpartmentDashboard;
