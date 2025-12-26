@@ -4,23 +4,34 @@ require('dotenv').config();
 
 const connectToMySQL = async () => {
   try {
-    const config = {
-      host: process.env.MYSQL_HOST,
-      user: process.env.MYSQL_USER,
-      password: process.env.MYSQL_PASSWORD,
-      database: process.env.MYSQL_DATABASE,
-      port: Number(process.env.MYSQL_PORT) || 3306,
-    };
+    // Fallbacks for local dev
+    const host = process.env.MYSQL_HOST || 'localhost';
+    const user = process.env.MYSQL_USER || 'root';
+    const password = process.env.MYSQL_PASSWORD || '';
+    const database = process.env.MYSQL_DATABASE || 'test';
+    const port = Number(process.env.MYSQL_PORT) || 3306;
 
-    // Enable SSL because Aiven uses ssl-mode=REQUIRED
+    const config = { host, user, password, database, port };
+
+    // Decide SSL based on env
     if (process.env.MYSQL_CA_CERT_PATH) {
-      config.ssl = {
-        ca: fs.readFileSync(process.env.MYSQL_CA_CERT_PATH)
-      };
-    } else {
-      // Basic SSL without custom CA (often still works)
+      // Aiven / cloud with CA
+      config.ssl = { ca: fs.readFileSync(process.env.MYSQL_CA_CERT_PATH) };
+    } else if (process.env.MYSQL_SSL === 'true') {
+      // Cloud without custom CA (still SSL)
       config.ssl = { rejectUnauthorized: true };
+    } else {
+      // Local MySQL: NO SSL
+      config.ssl = undefined;
     }
+
+    console.log('MySQL config in use:', {
+      host,
+      user,
+      database,
+      port,
+      ssl: config.ssl ? 'enabled' : 'disabled'
+    });
 
     const connection = await mysql.createConnection(config);
     console.log('Connected to MySQL successfully');
