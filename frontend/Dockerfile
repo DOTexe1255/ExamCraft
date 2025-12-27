@@ -7,8 +7,8 @@ WORKDIR /app
 # Copy the rest of the application code to the working directory
 COPY . .
 
-# Clean and install inside the image
-RUN npm clean-install
+# Clean and install  dependencies inside the image
+RUN npm clean-install 
 
 
 # Expose the port the app runs on

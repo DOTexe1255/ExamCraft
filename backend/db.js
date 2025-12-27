@@ -2,13 +2,13 @@ const mysql = require('mysql2/promise');
 const fs = require('fs');
 require('dotenv').config();
 
-const connectToMySQL = async () => {
+const connectToMySQL = async (retries = 3, delay = 3000) => {
   try {
     // Fallbacks for local dev
     const host = process.env.MYSQL_HOST || 'localhost';
     const user = process.env.MYSQL_USER || 'root';
     const password = process.env.MYSQL_PASSWORD || '';
-    const database = process.env.MYSQL_DATABASE || 'test';
+    const database = process.env.MYSQL_DATABASE || 'examcraft';
     const port = Number(process.env.MYSQL_PORT) || 3306;
 
     const config = { host, user, password, database, port };
@@ -37,6 +37,11 @@ const connectToMySQL = async () => {
     console.log('Connected to MySQL successfully');
     return connection;
   } catch (error) {
+    if (retries > 0) {
+      console.log(`Failed to connect to MySQL. Retrying in ${delay / 1000} seconds... (${retries} retries left)`);
+      await new Promise((resolve) => setTimeout(resolve, delay));
+      return connectToMySQL(retries - 1, delay);
+    }
     console.error('Failed to connect to MySQL:', error);
     throw error;
   }

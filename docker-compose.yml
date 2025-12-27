@@ -9,6 +9,15 @@ services:
     volumes:
       - ./backend:/app
     command: ["node", "index.js"]
+    depends_on:
+      database:
+        condition: service_healthy
+    environment:
+      MYSQL_HOST: examcraft-mysql
+      MYSQL_USER: examuser
+      MYSQL_PASSWORD: exampass
+      MYSQL_DATABASE: examcraft
+      MYSQL_PORT: 3306
 
   frontend:
     build:
@@ -18,5 +27,31 @@ services:
     # volumes:
     #   - ./frontend:/app
     command: ["npm", "run", "dev"]
+    depends_on:
+      - backend
 
-  
+  database:
+    build:
+      context: ./database
+    container_name: examcraft-mysql
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: examcraft
+      MYSQL_USER: examuser
+      MYSQL_PASSWORD: exampass
+      MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./database/Examcraft_db_proto.sql:/docker-entrypoint-initdb.d/Examcraft_db_proto.sql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+volumes:
+  mysql_data:
+
