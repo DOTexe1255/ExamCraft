@@ -1,10 +1,10 @@
 -- Full Normalized MySQL Database for Exam Craft (3NF)
 -- Create database
-CREATE DATABASE examcraft;
+CREATE DATABASE IF NOT EXISTS examcraft;
 USE examcraft;
 
 -- 1. Institutes (for multi-institute support)
-CREATE TABLE institutes (
+CREATE TABLE IF NOT EXISTS institutes (
     institute_id INT PRIMARY KEY AUTO_INCREMENT,
     name VARCHAR(100) NOT NULL,
     code VARCHAR(20) UNIQUE NOT NULL,
@@ -16,7 +16,7 @@ CREATE TABLE institutes (
 );
 
 -- 2. Departments (belongs to institute)
-CREATE TABLE departments (
+CREATE TABLE IF NOT EXISTS departments (
     department_id INT PRIMARY KEY AUTO_INCREMENT,
     institute_id INT NOT NULL,
     name VARCHAR(100) NOT NULL,
@@ -29,7 +29,7 @@ CREATE TABLE departments (
 );
 
 -- 3. Users (normalized roles, no redundancy)
-CREATE TABLE users (
+CREATE TABLE IF NOT EXISTS users (
     user_id INT PRIMARY KEY AUTO_INCREMENT,
     institute_id INT NOT NULL,
     department_id INT NULL,  -- NULL for institute admin
@@ -50,7 +50,7 @@ CREATE TABLE users (
 );
 
 -- 4. User Profiles (1:1 extension for additional details)
-CREATE TABLE user_profiles (
+CREATE TABLE IF NOT EXISTS user_profiles (
     user_id INT PRIMARY KEY,
     enrollment_no VARCHAR(20) UNIQUE,  -- For students
     employee_id VARCHAR(20),           -- For staff
@@ -61,7 +61,7 @@ CREATE TABLE user_profiles (
 );
 
 -- 5. Exam Categories (question types)
-CREATE TABLE question_types (
+CREATE TABLE IF NOT EXISTS question_types (
     type_id INT PRIMARY KEY AUTO_INCREMENT,
     type_name ENUM('mcq', 'true_false', 'short_answer', 'code') NOT NULL,
     max_marks INT DEFAULT 1,
@@ -69,7 +69,7 @@ CREATE TABLE question_types (
 );
 
 -- 6. Exams (normalized - no question data here)
-CREATE TABLE exams (
+CREATE TABLE IF NOT EXISTS exams (
     exam_id INT PRIMARY KEY AUTO_INCREMENT,
     institute_id INT NOT NULL,
     department_id INT NOT NULL,
@@ -93,7 +93,7 @@ CREATE TABLE exams (
 );
 
 -- 7. Questions (normalized - separate from exams)
-CREATE TABLE questions (
+CREATE TABLE IF NOT EXISTS questions (
     question_id INT PRIMARY KEY AUTO_INCREMENT,
     exam_id INT NOT NULL,
     type_id INT NOT NULL,
@@ -110,7 +110,7 @@ CREATE TABLE questions (
 );
 
 -- 8. Exam Assignments (many-to-many: exams to students)
-CREATE TABLE exam_assignments (
+CREATE TABLE IF NOT EXISTS exam_assignments (
     assignment_id INT PRIMARY KEY AUTO_INCREMENT,
     exam_id INT NOT NULL,
     student_id INT NOT NULL,
@@ -122,7 +122,7 @@ CREATE TABLE exam_assignments (
 );
 
 -- 9. Exam Attempts (one student can have multiple attempts per exam)
-CREATE TABLE exam_attempts (
+CREATE TABLE IF NOT EXISTS exam_attempts (
     attempt_id INT PRIMARY KEY AUTO_INCREMENT,
     assignment_id INT NOT NULL,
     student_id INT NOT NULL,
@@ -143,7 +143,7 @@ CREATE TABLE exam_attempts (
 );
 
 -- 10. Student Answers (normalized per question)
-CREATE TABLE student_answers (
+CREATE TABLE IF NOT EXISTS student_answers (
     answer_id INT PRIMARY KEY AUTO_INCREMENT,
     attempt_id INT NOT NULL,
     question_id INT NOT NULL,
@@ -157,7 +157,7 @@ CREATE TABLE student_answers (
 );
 
 -- 11. Audit Logs (for admin tracking)
-CREATE TABLE audit_logs (
+CREATE TABLE IF NOT EXISTS audit_logs (
     log_id INT PRIMARY KEY AUTO_INCREMENT,
     user_id INT,
     action VARCHAR(100) NOT NULL,
@@ -176,7 +176,7 @@ CREATE TABLE audit_logs (
 
 
 -- 12. Subjects/Courses (exams belong to specific subjects)
-CREATE TABLE subjects (
+CREATE TABLE IF NOT EXISTS subjects (
     subject_id INT PRIMARY KEY AUTO_INCREMENT,
     department_id INT NOT NULL,
     subject_code VARCHAR(20) UNIQUE NOT NULL,
@@ -192,7 +192,7 @@ ALTER TABLE exams ADD COLUMN subject_id INT AFTER department_id,
 ADD FOREIGN KEY (subject_id) REFERENCES subjects(subject_id);
 
 -- 13. Question Bank (reusable questions across multiple exams)
-CREATE TABLE question_bank (
+CREATE TABLE IF NOT EXISTS question_bank (
     qbank_id INT PRIMARY KEY AUTO_INCREMENT,
     subject_id INT NOT NULL,
     type_id INT NOT NULL,
@@ -214,7 +214,7 @@ ALTER TABLE questions ADD COLUMN qbank_id INT AFTER type_id,
 ADD FOREIGN KEY (qbank_id) REFERENCES question_bank(qbank_id);
 
 -- 14. Notifications (email/SMS alerts)
-CREATE TABLE notifications (
+CREATE TABLE IF NOT EXISTS notifications (
     notification_id INT PRIMARY KEY AUTO_INCREMENT,
     user_id INT NOT NULL,
     title VARCHAR(200) NOT NULL,
@@ -227,7 +227,7 @@ CREATE TABLE notifications (
 );
 
 -- 15. Exam Sessions (for lab-based proctored exams)
-CREATE TABLE exam_sessions (
+CREATE TABLE IF NOT EXISTS exam_sessions (
     session_id INT PRIMARY KEY AUTO_INCREMENT,
     exam_id INT NOT NULL,
     lab_name VARCHAR(100),
@@ -239,7 +239,7 @@ CREATE TABLE exam_sessions (
 );
 
 -- 16. File Uploads (question images, student docs)
-CREATE TABLE file_uploads (
+CREATE TABLE IF NOT EXISTS file_uploads (
     file_id INT PRIMARY KEY AUTO_INCREMENT,
     user_id INT,
     filename VARCHAR(255) NOT NULL,
@@ -251,7 +251,7 @@ CREATE TABLE file_uploads (
 );
 
 -- 17. Settings (institute-wide configurations)
-CREATE TABLE institute_settings (
+CREATE TABLE IF NOT EXISTS institute_settings (
     setting_id INT PRIMARY KEY AUTO_INCREMENT,
     institute_id INT NOT NULL,
     setting_key VARCHAR(100) NOT NULL,
