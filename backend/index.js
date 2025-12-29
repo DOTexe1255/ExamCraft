@@ -4,9 +4,12 @@ const app = express();
 const port = process.env.PORT || 3000;
 require('dotenv').config();
 const cors = require("cors");
+const cookieParser = require('cookie-parser');
 
 app.use(cors());
 app.use(express.json()); // Middleware to parse JSON request bodies
+app.use(cookieParser()); // Middleware to parse cookies
+
 
 // Connect to MySQL using the connectToMySQL function from db.js
 connectToMySQL();
