@@ -7,6 +7,7 @@ const connectToMySQL = require('../db');
 const studentregisterSchema = require('../models/studentregisterSchema.js');
 const departmentAdminRegisterSchema = require('../models/departmentAdminRegisterSchema.js');
 const instituteAdminRegisterSchema = require('../models/instituteAdminRegisterSchema.js');
+const createFingerprint = require('../global/globalFunction.js');
 
 
 // ====================== INSTITUTE ADMIN REGISTRATION ======================
@@ -67,7 +68,7 @@ router.post('/institute-admin-register', async (req, res) => {
     const [result] = await conn.execute(
       `INSERT INTO users
         (institute_id, department_id, email, password_hash, role, first_name, last_name, phone, is_active)
-       VALUES (?, NULL, ?, ?, 'admin', ?, ?, ?, 1)`,
+       VALUES (?, NULL, ?, ?, 'institute', ?, ?, ?, 1)`,
       [
         institute_id,
         email,
@@ -300,15 +301,30 @@ router.post('/student-register', async (req, res) => {
 });
 
 
-// ====================== UNIFIED LOGIN (ALL ROLES) ======================
+
+
+// ====================== UNIFIED LOGIN (ALL ROLES) - UPDATED WITH COOKIES ======================
 // POST /api/auth/login
-// Purpose: Authenticate admin / department / student and issue JWT.
+// Purpose: Authenticate institute / department / student and issue HttpOnly JWT cookie.
 // Sample JSON (admin):
-// { "email": "admin@techinst.com", "password": "password123", "role": "admin" }
+// { 
+//   "email": "admin@techinst.com", 
+//   "password": "password123", 
+//   "role": "institute" 
+// }
 // Sample JSON (department):
-// { "email": "cshead@techinst.com", "password": "password123", "role": "department" }
+// { 
+//   "email": "cshead@techinst.com", 
+//   "password": "password123", 
+//   "role": "department" 
+// }
 // Sample JSON (student):
-// { "email": "john.doe@techinst.com", "password": "password123", "role": "student" }
+// { 
+//   "email": "john.doe@techinst.com", 
+//   "password": "password123", 
+//   "role": "student" 
+// }
+// Response includes role: institute, department, or student
 router.post('/login', async (req, res) => {
   const { email, password, role } = req.body;
 
@@ -316,7 +332,7 @@ router.post('/login', async (req, res) => {
     return res.status(400).json({ message: 'Email, password, and role are required' });
   }
 
-  const allowedRoles = ['admin', 'department', 'student'];
+  const allowedRoles = ['institute', 'department', 'student'];
   if (!allowedRoles.includes(role)) {
     return res.status(400).json({ message: 'Invalid role' });
   }
@@ -326,7 +342,7 @@ router.post('/login', async (req, res) => {
     conn = await connectToMySQL();
 
     const [rows] = await conn.execute(
-      'SELECT user_id, email, password_hash, role, first_name, last_name, is_active FROM users WHERE email = ?',
+      'SELECT user_id, email, password_hash, role, first_name, last_name, is_active, institute_id, department_id FROM users WHERE email = ?',
       [email]
     );
 
@@ -360,20 +376,42 @@ router.post('/login', async (req, res) => {
 
     await conn.end();
 
+    // Create fingerprint using your global function + device binding
+    const fingerprint = createFingerprint(req);
+    
     const payload = {
       user_id: user.user_id,
-      role: user.role
+      role: user.role,
+      institute_id: user.institute_id,
+      department_id: user.department_id || null,
+      fingerprint: fingerprint
     };
 
     const token = jwt.sign(
       payload,
       process.env.JWT_SECRET || 'default_secret',
-      { expiresIn: process.env.JWT_EXPIRES_IN || '1h' }
+      { expiresIn: '30m' }
     );
+
+    // Set HttpOnly cookie (NO token in response body)
+    res.cookie('token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 30 * 60 * 1000  // 30 minutes
+    });
 
     return res.status(200).json({
       message: 'Login successful',
-      token
+      user: {
+        id: user.user_id,
+        email: user.email,
+        role: user.role,  // Returns: "institute", "department", or "student"
+        institute_id: user.institute_id,
+        department_id: user.department_id || null,
+        first_name: user.first_name,
+        last_name: user.last_name
+      }
     });
   } catch (err) {
     if (conn) await conn.end();
@@ -381,5 +419,51 @@ router.post('/login', async (req, res) => {
     return res.status(500).json({ message: 'Server error' });
   }
 });
+
+// ====================== NEW VERIFY ENDPOINT ======================
+// GET /api/auth/verify
+// Purpose: Check if user is authenticated (for React useAuth hook)
+// Sample Request: GET /api/auth/verify (with cookie)
+// Response: { authenticated: true/false, user: {...}, error: "optional" }
+router.get('/verify', async (req, res) => {
+  try {
+    const token = req.cookies.token;
+    
+    if (!token) {
+      return res.status(401).json({ 
+        authenticated: false, 
+        user: null 
+      });
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'default_secret');
+    
+    // Fingerprint verification using your global function
+    const currentFingerprint = createFingerprint(req);
+    if (decoded.fingerprint !== currentFingerprint) {
+      return res.status(401).json({ 
+        authenticated: false, 
+        user: null,
+        error: 'Device fingerprint mismatch'
+      });
+    }
+
+    res.json({
+      authenticated: true,
+      user: {
+        id: decoded.user_id,
+        role: decoded.role,  // institute, department, student
+        institute_id: decoded.institute_id,
+        department_id: decoded.department_id || null
+      }
+    });
+  } catch (err) {
+    res.status(401).json({ 
+      authenticated: false, 
+      user: null 
+    });
+  }
+});
+
 
 module.exports = router;
