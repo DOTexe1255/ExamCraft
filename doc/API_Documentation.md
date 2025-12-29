@@ -31,7 +31,7 @@ POST /api/auth/institute-admin-register
 **Headers**: `None`  
 **Sample Request**:
 
-
+```
 {
 "first_name": "Super",
 "last_name": "Admin",
@@ -41,6 +41,7 @@ POST /api/auth/institute-admin-register
 "phone": "9876543210"
 }
 
+```
 **Response**: `201 { "message": "Institute admin created successfully", "user_id": 1 }`
 
 ### 1.2 Department Admin Registration
@@ -51,6 +52,7 @@ POST /api/auth/department-admin-register
 **Headers**: `None`  
 **Sample Request**:
 
+```
 {
 "first_name": "CS",
 "last_name": "Head",
@@ -61,7 +63,7 @@ POST /api/auth/department-admin-register
 "phone": "9876543212"
 }
 
-
+```
 
 ### 1.3 Student Registration
 
@@ -70,6 +72,8 @@ POST /api/auth/student-register
 **Purpose**: Register student under institute+department  
 **Headers**: `None`  
 **Sample Request**:
+
+```
 
 {
 "first_name": "John",
@@ -81,6 +85,7 @@ POST /api/auth/student-register
 "phone": "9876543214"
 }
 
+```
 
 ### 1.4 Unified Login ⭐ **UPDATED**
 
@@ -90,13 +95,20 @@ POST /api/auth/login
 **Headers**: `None` (cookie auto-set)  
 **Sample Request**:
 
+```
+
 {
 "email": "admin@techinst.com",
 "password": "password123",
 "role": "institute"
 }
 
+```
+
 **Response**:
+
+```
+
 {
 "message": "Login successful",
 "user": {
@@ -110,6 +122,7 @@ POST /api/auth/login
 }
 }
 
+```
 
 **Cookie**: `token=eyJhbGciOiJIUzI1Ni...` (HttpOnly, 30min)
 
@@ -121,6 +134,8 @@ GET /api/auth/verify
 **Headers**: `None` (uses cookie)  
 **Response (Success)**:
 
+```
+
 {
 "authenticated": true,
 "user": {
@@ -131,7 +146,7 @@ GET /api/auth/verify
 }
 }
 
-
+```
 
 ---
 
@@ -143,6 +158,8 @@ POST /api/institute
 
 **Sample Request**:
 
+```
+
 {
 "name": "Tech Institute Pune",
 "code": "TI001",
@@ -151,7 +168,7 @@ POST /api/institute
 "phone": "9876543210"
 }
 
-
+```
 ---
 
 ## 3. Department Management
@@ -162,12 +179,16 @@ POST /api/department
 
 **Sample Request**:
 
+```
+
 {
 "institute_id": 1,
 "name": "Computer Science",
 "code": "CS",
 "head_email": "cshead@techinst.com"
 }
+
+```
 
 ---
 
@@ -180,6 +201,8 @@ GET /api/user/getuserdata
 **Purpose**: Get authenticated user profile  
 **Headers**: `None` *(Cookie auto-sent)*  
 **Response**:
+
+```
 
 {
 "user": {
@@ -194,12 +217,15 @@ GET /api/user/getuserdata
 }
 }
 
+```
 
 ---
 
 ## 🎯 Frontend Integration (React) ⭐ **COMPLETE ASYNC/AWAIT**
 
 // 1. LOGIN - credentials: 'include' CRITICAL!
+
+```
 
 const loginUser = async (email, password, role) => {
 try {
@@ -225,7 +251,12 @@ throw error;
 }
 };
 
+```
+
 // 2. VERIFY AUTH STATUS
+
+```
+
 const verifyAuth = async () => {
 try {
 const response = await fetch('/api/auth/verify', {
@@ -239,6 +270,8 @@ return { authenticated: false, user: null };
 }
 };
 
+```
+
 // 3. GET PROTECTED USER DATA
 const getUserData = async () => {
 try {
@@ -250,7 +283,6 @@ const data = await response.json();
 if (!response.ok) {
   throw new Error(data.message || 'Failed to fetch user data');
 }
-
 return data.user;
 } catch (error) {
 console.error('User data error:', error);
@@ -258,6 +290,6 @@ throw error;
 }
 };
 
-
+```
 ---
 
