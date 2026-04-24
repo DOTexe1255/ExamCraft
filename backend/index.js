@@ -6,7 +6,10 @@ require('dotenv').config();
 const cors = require("cors");
 const cookieParser = require('cookie-parser');
 
-app.use(cors());
+app.use(cors({
+  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+  credentials: true
+}));
 app.use(express.json()); // Middleware to parse JSON request bodies
 app.use(cookieParser()); // Middleware to parse cookies
 
@@ -18,6 +21,7 @@ app.use('/api/auth', require('./routes/auth'));          // user auth (admin/dep
 app.use('/api/institute', require('./routes/institute')); // institute registration
 app.use('/api/department', require('./routes/department')); // department registration
 app.use('/api/user', require('./routes/userdata'));      // getuserdata via JWT
+app.use('/api/exams', require('./routes/exams'));        // exam management
 
 // Start the server and listen on the defined port
 app.listen(port, () => {

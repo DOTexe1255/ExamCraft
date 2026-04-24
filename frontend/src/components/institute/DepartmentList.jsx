@@ -7,7 +7,7 @@ const DepartmentList = ({ instituteId }) => {
   const handleAddDepartment = async ({ departmentData, departmentAdminData }) => {
     try {
       // 1. Create department first
-      const departmentResponse = await fetch('/api/departments', {
+      const departmentResponse = await fetch('/api/department', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -23,7 +23,7 @@ const DepartmentList = ({ instituteId }) => {
       }
 
       const department = await departmentResponse.json();
-      const departmentId = department.id;
+      const departmentId = department.department_id || department.id;
 
       // 2. Create department admin if head details provided
       if (departmentAdminData) {

@@ -82,9 +82,18 @@ const CreateExamModal = ({ isOpen, onClose, onSubmit, instituteId, departmentId 
     setIsSubmitting(true);
 
     try {
-      // Simulate a successful submission
-      alert('Exam created successfully!');
-      onClose();
+      await onSubmit({
+        title: formData.title,
+        description: formData.description,
+        duration: Number(formData.duration),
+        total_marks: Number(formData.total_marks),
+        passing_marks: Number(formData.passing_marks),
+        start_date: formData.start_date,
+        end_date: formData.end_date,
+        question_count: Number(formData.question_count),
+        exam_type: formData.exam_type,
+        is_active: formData.is_active
+      });
     } catch (error) {
       console.error('Submission error:', error);
     } finally {

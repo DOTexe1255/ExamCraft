@@ -72,9 +72,14 @@ const AddStudentModal = ({ isOpen, onClose, onSubmit, instituteId, departmentId 
     setIsSubmitting(true);
 
     try {
-      // Simulate a successful submission
-      alert('Student added successfully!');
-      onClose();
+      await onSubmit({
+        first_name: formData.first_name,
+        last_name: formData.last_name,
+        email: formData.email,
+        phone: formData.phone || null,
+        password: formData.password || undefined,
+        enrollment_no: formData.student_id || null
+      });
     } catch (error) {
       console.error('Submission error:', error);
     } finally {

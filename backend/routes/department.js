@@ -1,8 +1,28 @@
 const express = require('express');
 const connectToMySQL = require('../db');
+const authMiddleware = require('./authMiddleware');
 
 const router = express.Router();
 const departmentregisterschema = require('../models/departmentregisterSchema');
+
+// GET /api/department - list departments for the logged-in user's institute
+router.get('/', authMiddleware, async (req, res) => {
+  const { institute_id } = req.user;
+  let conn;
+  try {
+    conn = await connectToMySQL();
+    const [rows] = await conn.execute(
+      'SELECT department_id, name, code, head_email, created_at FROM departments WHERE institute_id = ? ORDER BY name',
+      [institute_id]
+    );
+    await conn.end();
+    return res.status(200).json({ departments: rows });
+  } catch (err) {
+    if (conn) await conn.end();
+    console.error('Get departments error:', err);
+    return res.status(500).json({ message: 'Database error' });
+  }
+});
 
 // POST /api/department
 // Purpose: Create a department under an existing institute.
@@ -67,7 +87,8 @@ router.post('/', async (req, res) => {
 
     return res.status(201).json({
       message: 'Department created successfully',
-      department_id: result.insertId
+      department_id: result.insertId,
+      id: result.insertId
     });
   } catch (err) {
     if (conn) await conn.end();

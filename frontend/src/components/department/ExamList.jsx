@@ -12,8 +12,8 @@ const ExamList = ({ instituteId, departmentId }) => {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
-          // 'Authorization': `Bearer ${token}`
         },
+        credentials: 'include',
         body: JSON.stringify(examData)
       });
 
@@ -35,13 +35,20 @@ const ExamList = ({ instituteId, departmentId }) => {
 
   const handleAddStudent = async (studentData) => {
     try {
-      const response = await fetch('/api/auth/register', {
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      const response = await fetch('/api/auth/student-register', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
-          // 'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify(studentData)
+        credentials: 'include',
+        body: JSON.stringify({
+          ...studentData,
+          role: 'student',
+          institute_id: instituteId || user.institute_id,
+          department_id: departmentId || user.department_id,
+          password: studentData.password || Math.random().toString(36).slice(-8)
+        })
       });
 
       if (!response.ok) {

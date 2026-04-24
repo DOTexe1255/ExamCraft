@@ -35,13 +35,30 @@ const AdministrationLogin = () => {
     setLoading(true);
     setError("");
     try {
-      await new Promise((r) => setTimeout(r, 700));
-      console.log("login payload", form);
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ email: form.email, password: form.password, role: form.role })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setError(data.message || 'Invalid credentials. Please try again.');
+        return;
+      }
+
+      // Store user info for use in dashboard components
+      if (data.user) {
+        localStorage.setItem('user', JSON.stringify(data.user));
+      }
+
       const redirectPath = form.role === "institute" ? "/institute-dashboard" : "/department-dashboard";
       navigate(redirectPath, { replace: true });
     } catch (err) {
       console.error(err);
-      setError("Invalid credentials. Please try again.");
+      setError("Network error. Please try again.");
     } finally {
       setLoading(false);
     }

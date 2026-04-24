@@ -34,55 +34,22 @@ const ExamDashboard = () => {
   const fetchExamData = async () => {
     try {
       setIsLoading(true);
-      // Mock data for demo - replace with real API call
-      const mockExamData = {
-        id: examId,
-        title: "Data Structures & Algorithms",
-        description: "Test your knowledge on arrays, linked lists, trees, and sorting algorithms",
-        duration: 60,
-        total_marks: 100,
-        passing_marks: 40,
-        questions: [
-          {
-            id: "q1",
-            text: "Which data structure uses LIFO (Last In, First Out) principle?",
-            options: [
-              { id: "a", text: "Queue" },
-              { id: "b", text: "Stack", correct: true },
-              { id: "c", text: "Array" },
-              { id: "d", text: "Linked List" }
-            ]
-          },
-          {
-            id: "q2",
-            text: "What is the time complexity of binary search?",
-            options: [
-              { id: "a", text: "O(n)" },
-              { id: "b", text: "O(log n)", correct: true },
-              { id: "c", text: "O(n log n)" },
-              { id: "d", text: "O(1)" }
-            ]
-          },
-          {
-            id: "q3",
-            text: "Which sorting algorithm has the best average-case time complexity?",
-            options: [
-              { id: "a", text: "Bubble Sort" },
-              { id: "b", text: "Quick Sort", correct: true },
-              { id: "c", text: "Insertion Sort" },
-              { id: "d", text: "Selection Sort" }
-            ]
-          }
-        ]
-      };
+      const response = await fetch(`/api/exams/${examId}`, {
+        credentials: 'include'
+      });
 
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      setExamData(mockExamData);
-      setTimeLeft(mockExamData.duration * 60);
+      if (!response.ok) {
+        throw new Error('Failed to load exam');
+      }
+
+      const data = await response.json();
+      const exam = data.exam;
+
+      setExamData(exam);
+      setTimeLeft((exam.duration_minutes || exam.duration || 60) * 60);
     } catch (error) {
       console.error('Failed to fetch exam:', error);
+      setExamData(null);
     } finally {
       setIsLoading(false);
     }
@@ -109,10 +76,18 @@ const ExamDashboard = () => {
 
   const handleSubmit = async () => {
     try {
-      // Simulate API submission
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      console.log('Submitting answers:', answers);
+      const response = await fetch(`/api/exams/${examId}/submit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ answers })
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.message || 'Submission failed');
+      }
+
       setIsSubmitted(true);
     } catch (error) {
       console.error('Failed to submit exam:', error);
@@ -174,6 +149,10 @@ const ExamDashboard = () => {
   }
 
   const question = examData.questions[currentQuestion];
+  // Support both API field names (question_id/question_text) and legacy (id/text)
+  const questionId = question.question_id || question.id;
+  const questionText = question.question_text || question.text;
+  const questionOptions = Array.isArray(question.options) ? question.options : [];
   const minutes = Math.floor(timeLeft / 60);
   const seconds = timeLeft % 60;
 
@@ -215,18 +194,21 @@ const ExamDashboard = () => {
         <div className="bg-white/70 backdrop-blur-sm rounded-3xl shadow-2xl p-8 mb-8 border border-student-100/50">
           <div className="mb-8">
             <h2 className="text-2xl font-bold text-gray-900 mb-4">
-              Q{currentQuestion + 1}. {question.text}
+              Q{currentQuestion + 1}. {questionText}
             </h2>
           </div>
 
           {/* Multiple Choice Options */}
           <div className="space-y-3">
-            {question.options.map((option, index) => (
+            {questionOptions.map((option, index) => {
+              const optionId = option.option_id || option.id || index;
+              const optionText = option.option_text || option.text || option;
+              return (
               <button
-                key={option.id}
-                onClick={() => handleAnswerSelect(question.id, option.id)}
+                key={optionId}
+                onClick={() => handleAnswerSelect(questionId, optionId)}
                 className={`group w-full p-6 border-2 rounded-2xl flex items-start gap-4 transition-all duration-300 hover:shadow-xl hover:-translate-y-1 ${
-                  answers[question.id] === option.id
+                  answers[questionId] === optionId
                     ? 'border-student-500 bg-gradient-to-r from-student-50 to-student-100 shadow-student-lg ring-4 ring-student-200/50'
                     : 'border-gray-200 hover:border-student-300 hover:bg-gray-50'
                 }`}
@@ -234,8 +216,8 @@ const ExamDashboard = () => {
                 <span className="text-xl font-bold w-12 flex-shrink-0 text-student-500 group-hover:text-student-600 transition-colors">
                   {String.fromCharCode(65 + index)}.
                 </span>
-                <span className="text-left leading-relaxed flex-1">{option.text}</span>
-                {answers[question.id] === option.id && (
+                <span className="text-left leading-relaxed flex-1">{optionText}</span>
+                {answers[questionId] === optionId && (
                   <div className="ml-auto w-5 h-5 bg-student-500 rounded-full flex items-center justify-center shadow-lg">
                     <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
@@ -243,7 +225,8 @@ const ExamDashboard = () => {
                   </div>
                 )}
               </button>
-            ))}
+              );
+            })}
           </div>
         </div>
 

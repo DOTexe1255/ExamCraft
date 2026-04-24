@@ -5,6 +5,9 @@ import DepartmentList from './DepartmentList';
 import QuickActions from './InstituteQuickActions';
 
 const InstituteDashboard = () => {
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  const { institute_id } = user;
+
   return (
     <div className="min-h-screen bg-institute-bg p-6">
       {/* Header */}
@@ -16,10 +19,10 @@ const InstituteDashboard = () => {
       {/* Main Content */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Departments & Exams List */}
-        <DepartmentList />
+        <DepartmentList instituteId={institute_id} />
 
         {/* Quick Actions */}
-        <QuickActions />
+        <QuickActions instituteId={institute_id} />
       </div>
     </div>
   );

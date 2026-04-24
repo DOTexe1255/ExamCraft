@@ -1,6 +1,7 @@
 import React from 'react'
 import RecentActivity from './RecentActivity'
 import ExamTip from './ExamTip'
+import QuestionTypes from './QuestionTypes'
 
 const Sidebar = () => {
   return (
@@ -14,7 +15,7 @@ const Sidebar = () => {
             <ExamTip />
 
             {/* Question Types Info */}
-            <ExamTip />
+            <QuestionTypes />
             
           </div>
     </>

@@ -5,6 +5,9 @@ import ExamList from './ExamList';
 import QuickActions from './QuickActions';
 
 const DpartmentDashboard = () => {
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  const { institute_id, department_id } = user;
+
   return (
     <div className="min-h-screen bg-teacher-bg p-6">
       {/* Header */}
@@ -16,10 +19,10 @@ const DpartmentDashboard = () => {
       {/* Main Content */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Exams List */}
-        <ExamList />
+        <ExamList instituteId={institute_id} departmentId={department_id} />
 
         {/* Quick Actions */}
-        <QuickActions />
+        <QuickActions instituteId={institute_id} departmentId={department_id} />
       </div>
     </div>
   );

@@ -7,7 +7,7 @@ const InstituteQuickActions = () => {
 const handleAddDepartment = async ({ departmentData, departmentAdminData }) => {
   try {
     // 1. First create department
-    const departmentResponse = await fetch('/api/departments', {
+    const departmentResponse = await fetch('/api/department', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(departmentData)
@@ -18,7 +18,7 @@ const handleAddDepartment = async ({ departmentData, departmentAdminData }) => {
     }
 
     const department = await departmentResponse.json();
-    const departmentId = department.id;
+    const departmentId = department.department_id || department.id;
 
     // 2. Then create department admin (if head details provided)
     if (departmentAdminData) {

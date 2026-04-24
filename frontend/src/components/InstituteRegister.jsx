@@ -2,7 +2,14 @@ import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
 const InstituteRegisterPage = () => {
-  const [formData, setFormData] = useState({ instituteName: "", email: "", password: "" });
+  const [formData, setFormData] = useState({
+    instituteName: "",
+    instituteCode: "",
+    adminFirstName: "",
+    adminLastName: "",
+    email: "",
+    password: ""
+  });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const navigate = useNavigate?.() || (() => {});
@@ -15,6 +22,9 @@ const InstituteRegisterPage = () => {
 
   const validate = () => {
     if (!formData.instituteName) return "Institute name is required";
+    if (!formData.instituteCode) return "Institute code is required";
+    if (!formData.adminFirstName) return "First name is required";
+    if (!formData.adminLastName) return "Last name is required";
     if (!formData.email) return "Email is required";
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(formData.email)) return "Enter a valid email";
     if (!formData.password || formData.password.length < 6) return "Password must be at least 6 characters";
@@ -31,13 +41,50 @@ const InstituteRegisterPage = () => {
     setLoading(true);
     setError("");
     try {
-      // TODO: call real API to register
-      await new Promise((r) => setTimeout(r, 800));
-      console.log("Register payload:", formData);
+      // Step 1: Create institute
+      const instituteRes = await fetch('/api/institute', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: formData.instituteName,
+          code: formData.instituteCode.toUpperCase(),
+          contact_email: formData.email
+        })
+      });
+
+      const instituteData = await instituteRes.json();
+
+      if (!instituteRes.ok) {
+        setError(instituteData.message || 'Failed to register institute. Try again.');
+        return;
+      }
+
+      const institute_id = instituteData.institute_id;
+
+      // Step 2: Create institute admin account
+      const adminRes = await fetch('/api/auth/institute-admin-register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          first_name: formData.adminFirstName,
+          last_name: formData.adminLastName,
+          email: formData.email,
+          password: formData.password,
+          institute_id
+        })
+      });
+
+      const adminData = await adminRes.json();
+
+      if (!adminRes.ok) {
+        setError(adminData.message || 'Institute created but admin account failed. Contact support.');
+        return;
+      }
+
       navigate("/login");
     } catch (err) {
       console.error(err);
-      setError("Registration failed. Try again.");
+      setError("Network error. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -143,6 +190,48 @@ const InstituteRegisterPage = () => {
                   className="w-full px-5 py-4 rounded-2xl border-2 border-gray-200 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100/50 outline-none bg-white/50 backdrop-blur-sm text-lg placeholder-gray-500 transition-all duration-300 hover:border-emerald-300"
                   autoComplete="organization"
                 />
+              </div>
+
+              {/* Institute Code */}
+              <div>
+                <label className="block text-sm font-bold text-gray-900 mb-3">Institute Code</label>
+                <input
+                  name="instituteCode"
+                  type="text"
+                  value={formData.instituteCode}
+                  onChange={handleChange}
+                  placeholder="e.g., TI001 (unique identifier)"
+                  className="w-full px-5 py-4 rounded-2xl border-2 border-gray-200 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100/50 outline-none bg-white/50 backdrop-blur-sm text-lg placeholder-gray-500 transition-all duration-300 hover:border-emerald-300 uppercase"
+                  autoComplete="off"
+                />
+              </div>
+
+              {/* Admin Name */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-bold text-gray-900 mb-3">First Name</label>
+                  <input
+                    name="adminFirstName"
+                    type="text"
+                    value={formData.adminFirstName}
+                    onChange={handleChange}
+                    placeholder="John"
+                    className="w-full px-5 py-4 rounded-2xl border-2 border-gray-200 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100/50 outline-none bg-white/50 backdrop-blur-sm text-lg placeholder-gray-500 transition-all duration-300 hover:border-emerald-300"
+                    autoComplete="given-name"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-gray-900 mb-3">Last Name</label>
+                  <input
+                    name="adminLastName"
+                    type="text"
+                    value={formData.adminLastName}
+                    onChange={handleChange}
+                    placeholder="Doe"
+                    className="w-full px-5 py-4 rounded-2xl border-2 border-gray-200 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100/50 outline-none bg-white/50 backdrop-blur-sm text-lg placeholder-gray-500 transition-all duration-300 hover:border-emerald-300"
+                    autoComplete="family-name"
+                  />
+                </div>
               </div>
 
               {/* Email */}

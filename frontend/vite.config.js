@@ -7,6 +7,13 @@ export default defineConfig({
     host: true,  // Allow proxy from Nginx (any host)
     hmr: {
       host: 'localhost'  // Fix HMR with proxy
+    },
+    proxy: {
+      '/api': {
+        target: process.env.VITE_API_TARGET || 'http://localhost:3000',
+        changeOrigin: true,
+        secure: false
+      }
     }
   }
 })

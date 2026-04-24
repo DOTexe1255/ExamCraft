@@ -31,12 +31,29 @@ const StudentLogin = () => {
     setLoading(true);
     setError("");
     try {
-      await new Promise((r) => setTimeout(r, 700));
-      console.log("student CBT login payload", form);
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ email: form.email, password: form.password, role: 'student' })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setError(data.message || 'Invalid credentials. Please check your email and password.');
+        return;
+      }
+
+      // Store user info for dashboard
+      if (data.user) {
+        localStorage.setItem('user', JSON.stringify(data.user));
+      }
+
       navigate("/student-dashboard", { replace: true });
     } catch (err) {
       console.error(err);
-      setError("Invalid credentials. Please check your email and password.");
+      setError("Network error. Please try again.");
     } finally {
       setLoading(false);
     }

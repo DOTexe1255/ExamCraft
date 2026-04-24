@@ -4,11 +4,17 @@ import { useNavigate } from 'react-router-dom';
 const InstituteHeader = () => {
   const navigate = useNavigate();
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+    } catch {
+      // ignore network errors on logout
+    }
     // Clear any auth tokens/localStorage if needed
     localStorage.removeItem('token');
     localStorage.removeItem('userRole');
     localStorage.removeItem('instituteId');
+    localStorage.removeItem('user');
     
     // Redirect to home page
     navigate('/', { replace: true });
