@@ -102,7 +102,8 @@ Import initial schema from `/SQL`:
 -- In MySQL client / GUI
 SOURCE path/to/SQL/your-schema.sql;
 
-
+Note: to check docker mysql database use: docker exec -it examcraft-mysql mysql -u root -p
+and password is "password"
 ### 2. Frontend Setup
 
 cd frontend
