@@ -7,7 +7,7 @@ const connectToMySQL = async (retries = 3, delay = 3000) => {
     // Fallbacks for local dev
     const host = process.env.MYSQL_HOST || 'localhost';
     const user = process.env.MYSQL_USER || 'root';
-    const password = process.env.MYSQL_PASSWORD || '';
+    const password = process.env.MYSQL_PASSWORD || 'password';
     const database = process.env.MYSQL_DATABASE || 'examcraft';
     const port = Number(process.env.MYSQL_PORT) || 3306;
 

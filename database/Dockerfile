@@ -1,14 +1,12 @@
 # Use the official MySQL image as the base image
 FROM mysql:9.4.0
 
-# Set the default environment variables
-ENV MYSQL_ROOT_PASSWORD=root \
-    MYSQL_DATABASE=examcraft \
-    MYSQL_USER=examuser \
-    MYSQL_PASSWORD=exampass
+# Set default environment variables
+ENV MYSQL_ROOT_PASSWORD=password \
+    MYSQL_DATABASE=examcraft
 
-# Copy the initialization SQL script to the container
+# Copy initialization SQL script
 COPY Examcraft_db_proto.sql /docker-entrypoint-initdb.d/
 
-# Expose the default MySQL port
+# Expose MySQL port
 EXPOSE 3306
