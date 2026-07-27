@@ -1,11 +1,41 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
 const InstituteRegisterPage = () => {
-  const [formData, setFormData] = useState({ instituteName: "", email: "", password: "" });
+  const [formData, setFormData] = useState({
+    name: "",
+    code: "",
+    address: "",
+    contact_email: "",
+    phone: ""
+  });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [popup, setPopup] = useState({ open: false, type: "success", message: "" });
   const navigate = useNavigate?.() || (() => {});
+  const popupTimerRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (popupTimerRef.current) {
+        clearTimeout(popupTimerRef.current);
+      }
+    };
+  }, []);
+
+  const showPopup = (type, message, onClose) => {
+    if (popupTimerRef.current) {
+      clearTimeout(popupTimerRef.current);
+    }
+
+    setPopup({ open: true, type, message });
+    popupTimerRef.current = setTimeout(() => {
+      setPopup({ open: false, type, message: "" });
+      if (typeof onClose === "function") {
+        onClose();
+      }
+    }, 1800);
+  };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -14,10 +44,12 @@ const InstituteRegisterPage = () => {
   };
 
   const validate = () => {
-    if (!formData.instituteName) return "Institute name is required";
-    if (!formData.email) return "Email is required";
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(formData.email)) return "Enter a valid email";
-    if (!formData.password || formData.password.length < 6) return "Password must be at least 6 characters";
+    if (!formData.name.trim()) return "Institute name is required";
+    if (formData.name.trim().length < 2) return "Institute name must be at least 2 characters";
+    if (!formData.code.trim()) return "Institute code is required";
+    if (formData.code.trim().length < 2) return "Institute code must be at least 2 characters";
+    if (formData.contact_email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(formData.contact_email)) return "Enter a valid contact email";
+    if (formData.phone && formData.phone.trim().length > 15) return "Phone number must be 15 characters or fewer";
     return "";
   };
 
@@ -31,13 +63,34 @@ const InstituteRegisterPage = () => {
     setLoading(true);
     setError("");
     try {
-      // TODO: call real API to register
-      await new Promise((r) => setTimeout(r, 800));
-      console.log("Register payload:", formData);
-      navigate("/login");
+      const response = await fetch('/api/institute', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          name: formData.name.trim(),
+          code: formData.code.trim(),
+          address: formData.address.trim() || null,
+          contact_email: formData.contact_email.trim() || null,
+          phone: formData.phone.trim() || null
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        const details = Array.isArray(data?.details) ? data.details.join(', ') : '';
+        throw new Error(data?.message || details || 'Institute registration failed');
+      }
+
+      console.log('Institute created successfully:', data);
+      showPopup("success", "Institute created successfully", () => navigate("/login"));
     } catch (err) {
       console.error(err);
-      setError("Registration failed. Try again.");
+      const message = err?.message || "Registration failed. Try again.";
+      setError(message);
+      showPopup("error", message);
     } finally {
       setLoading(false);
     }
@@ -45,6 +98,38 @@ const InstituteRegisterPage = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-blue-50 to-indigo-50 relative overflow-hidden">
+      {popup.open && (
+        <div className="fixed top-6 right-6 z-50 max-w-sm">
+          <div
+            className={`flex items-start gap-3 rounded-2xl px-5 py-4 shadow-2xl border backdrop-blur-xl ${
+              popup.type === "success"
+                ? "bg-emerald-50/95 border-emerald-200 text-emerald-900"
+                : "bg-red-50/95 border-red-200 text-red-900"
+            }`}
+          >
+            <div
+              className={`mt-0.5 flex h-8 w-8 items-center justify-center rounded-full ${
+                popup.type === "success" ? "bg-emerald-600" : "bg-red-600"
+              }`}
+            >
+              {popup.type === "success" ? (
+                <svg className="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                  <path stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              ) : (
+                <svg className="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                  <path stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M12 6a6 6 0 100 12 6 6 0 000-12z" />
+                </svg>
+              )}
+            </div>
+            <div>
+              <p className="font-bold">{popup.type === "success" ? "Success" : "Failed"}</p>
+              <p className="text-sm opacity-90">{popup.message}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Animated Background */}
       <div className="absolute inset-0">
         <div className="absolute -top-40 -right-40 w-80 h-80 bg-emerald-200 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-blob"></div>
@@ -118,7 +203,7 @@ const InstituteRegisterPage = () => {
               <h2 className="text-4xl font-black bg-gradient-to-r from-gray-900 via-emerald-700 to-indigo-700 bg-clip-text text-transparent mb-3">
                 Get Started
               </h2>
-              <p className="text-xl text-gray-600 font-medium">Create your institute account in seconds</p>
+              <p className="text-xl text-gray-600 font-medium">Enter institute details and send them to the backend</p>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-6">
@@ -133,11 +218,11 @@ const InstituteRegisterPage = () => {
 
               {/* Institute Name */}
               <div>
-                <label className="block text-sm font-bold text-gray-900 mb-3">Institute Name</label>
+                <label className="block text-sm font-bold text-gray-900 mb-3">Institute Name *</label>
                 <input
-                  name="instituteName"
+                  name="name"
                   type="text"
-                  value={formData.instituteName}
+                  value={formData.name}
                   onChange={handleChange}
                   placeholder="e.g., Tech Institute Pune"
                   className="w-full px-5 py-4 rounded-2xl border-2 border-gray-200 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100/50 outline-none bg-white/50 backdrop-blur-sm text-lg placeholder-gray-500 transition-all duration-300 hover:border-emerald-300"
@@ -147,11 +232,38 @@ const InstituteRegisterPage = () => {
 
               {/* Email */}
               <div>
-                <label className="block text-sm font-bold text-gray-900 mb-3">Admin Email</label>
+                <label className="block text-sm font-bold text-gray-900 mb-3">Institute Code *</label>
                 <input
-                  name="email"
+                  name="code"
+                  type="text"
+                  value={formData.code}
+                  onChange={handleChange}
+                  placeholder="e.g., TI001"
+                  className="w-full px-5 py-4 rounded-2xl border-2 border-gray-200 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100/50 outline-none bg-white/50 backdrop-blur-sm text-lg placeholder-gray-500 transition-all duration-300 hover:border-emerald-300"
+                  autoComplete="off"
+                />
+              </div>
+
+              {/* Password */}
+              <div>
+                <label className="block text-sm font-bold text-gray-900 mb-3">Address</label>
+                <input
+                  name="address"
+                  type="text"
+                  value={formData.address}
+                  onChange={handleChange}
+                  placeholder="e.g., Pune, Maharashtra"
+                  className="w-full px-5 py-4 rounded-2xl border-2 border-gray-200 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100/50 outline-none bg-white/50 backdrop-blur-sm text-lg placeholder-gray-500 transition-all duration-300 hover:border-emerald-300"
+                  autoComplete="street-address"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-gray-900 mb-3">Contact Email</label>
+                <input
+                  name="contact_email"
                   type="email"
-                  value={formData.email}
+                  value={formData.contact_email}
                   onChange={handleChange}
                   placeholder="admin@yourinstitute.com"
                   className="w-full px-5 py-4 rounded-2xl border-2 border-gray-200 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100/50 outline-none bg-white/50 backdrop-blur-sm text-lg placeholder-gray-500 transition-all duration-300 hover:border-emerald-300"
@@ -159,17 +271,16 @@ const InstituteRegisterPage = () => {
                 />
               </div>
 
-              {/* Password */}
               <div>
-                <label className="block text-sm font-bold text-gray-900 mb-3">Password</label>
+                <label className="block text-sm font-bold text-gray-900 mb-3">Phone</label>
                 <input
-                  name="password"
-                  type="password"
-                  value={formData.password}
+                  name="phone"
+                  type="tel"
+                  value={formData.phone}
                   onChange={handleChange}
-                  placeholder="Create strong password"
+                  placeholder="9876543210"
                   className="w-full px-5 py-4 rounded-2xl border-2 border-gray-200 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100/50 outline-none bg-white/50 backdrop-blur-sm text-lg placeholder-gray-500 transition-all duration-300 hover:border-emerald-300"
-                  autoComplete="new-password"
+                  autoComplete="tel"
                 />
               </div>
 
@@ -183,14 +294,14 @@ const InstituteRegisterPage = () => {
                     <svg className="animate-spin h-6 w-6" viewBox="0 0 24 24" fill="none">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3"/>
                     </svg>
-                    <span>Creating Account...</span>
+                    <span>Creating Institute...</span>
                   </>
                 ) : (
                   <>
                     <svg className="w-6 h-6 group-hover:scale-110 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
                     </svg>
-                    <span>Register Institute</span>
+                    <span>Submit Institute Details</span>
                     <div className="absolute -right-4 group-hover:right-0 bg-white/30 w-20 h-20 rounded-full blur-xl -z-10 transition-all duration-500"></div>
                   </>
                 )}
