@@ -21,16 +21,18 @@ services:
       MYSQL_PORT: 3306
 
   frontend:
-    # profiles: ["frontend"] #if you want to run frontend separately, uncomment this line and run `docker-compose --profile frontend up`
     build:
       context: ./frontend
     ports:
       - "5173:5173"
-    # volumes:
-    #   - ./frontend:/app
-    command: ["npm", "run", "dev"]
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    command: ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
     depends_on:
       - backend
+    stdin_open: true
+    tty: true
 
   database:
     build:
