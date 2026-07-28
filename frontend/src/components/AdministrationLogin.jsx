@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { setStoredAuth } from "./ProtectedRoute";
 
 const AdministrationLogin = () => {
   const [form, setForm] = useState({ 
@@ -36,8 +37,9 @@ const AdministrationLogin = () => {
     setError("");
     try {
       await new Promise((r) => setTimeout(r, 700));
-      console.log("login payload", form);
-      const redirectPath = form.role === "institute" ? "/institute-dashboard" : "/department-dashboard";
+      const role = form.role === "institute" ? "institute" : "department";
+      setStoredAuth({ isAuthenticated: true, role, email: form.email });
+      const redirectPath = role === "institute" ? "/institute-dashboard" : "/department-dashboard";
       navigate(redirectPath, { replace: true });
     } catch (err) {
       console.error(err);

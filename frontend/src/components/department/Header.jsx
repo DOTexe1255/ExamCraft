@@ -1,17 +1,16 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import { clearStoredAuth } from '../ProtectedRoute';
 
 const Header = () => {
   const navigate = useNavigate();
 
   const handleLogout = () => {
-    // Clear teacher/department admin auth tokens/localStorage
+    clearStoredAuth();
     localStorage.removeItem('teacherToken');
     localStorage.removeItem('teacherId');
     localStorage.removeItem('departmentRole');
-    
-    // Redirect to home page
-    navigate('/', { replace: true });
+    navigate('/login', { replace: true });
   };
 
   return (
