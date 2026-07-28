@@ -2,7 +2,7 @@ const mysql = require('mysql2/promise');
 const fs = require('fs');
 require('dotenv').config();
 
-const connectToMySQL = async (retries = 3, delay = 3000) => {
+const connectToMySQL = async (retries = 5, delay = 3000) => {
   try {
     // Fallbacks for local dev
     const host = process.env.MYSQL_HOST || 'localhost';

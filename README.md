@@ -89,12 +89,13 @@ npm run dev # or: npm start
 
 
 Example `.env`:
-PORT=5000
-DB_HOST=localhost
-DB_USER=root
-DB_PASSWORD=yourpassword
-DB_NAME=examcraft
-JWT_SECRET=supersecretkey
+PORT=3000
+MYSQL_PORT=3306
+MYSQL_HOST=localhost
+MYSQL_USER=root
+MYSQL_PASSWORD=password
+MYSQL_DATABASE=examcraft
+JWT_SECRET=default_secret
 
 
 Import initial schema from `/SQL`:

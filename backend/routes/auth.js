@@ -24,74 +24,100 @@ const createFingerprint = require('../global/globalFunction.js');
 //   "phone": "9876543210"
 // }
 router.post('/institute-admin-register', async (req, res) => {
-   const { error, value } = instituteAdminRegisterSchema.validate(req.body, { abortEarly: false });
-  if (error) {
-    return res.status(400).json({
-      message: 'Validation error',
-      details: error.details.map(d => d.message)
-    });
-  }
-  const { first_name, last_name, email, password, institute_id, phone } = req.body;
+  console.log("Institute admin route hit");
 
-  if (!first_name || !last_name || !email || !password || !institute_id) {
+  const { error, value } = instituteAdminRegisterSchema.validate(req.body, {
+    abortEarly: false,
+  });
+
+  if (error) {
+    console.log("Validation failed");
     return res.status(400).json({
-      message: 'first_name, last_name, email, password, institute_id are required'
+      message: "Validation error",
+      details: error.details.map((d) => d.message),
     });
   }
+
+  const { first_name, last_name, email, password, institute_id, phone } = value;
 
   let conn;
-  try {
-    conn = await connectToMySQL();
 
-    // Check email uniqueness
-    const [existing] = await conn.execute(
-      'SELECT user_id FROM users WHERE email = ?',
-      [email]
-    );
+  try {
+    // console.log("1. Connecting to MySQL...");
+    conn = await connectToMySQL();
+    // console.log("2. MySQL Connected");
+
+    // console.log("3. Checking existing email...");
+    // console.log("Before query()");
+
+const [existing] = await conn.query(
+  `SELECT user_id FROM users WHERE email = '${email.replace(/'/g, "\\'")}'`
+);
+
+// console.log("After query()", existing);
+//     console.log("4. Email check completed");
+
     if (existing.length > 0) {
       await conn.end();
-      return res.status(409).json({ message: 'Email already registered' });
+      return res.status(409).json({
+        message: "Email already registered",
+      });
     }
 
-    // Verify institute exists
+    // console.log("5. Checking institute...");
     const [instRows] = await conn.execute(
-      'SELECT institute_id FROM institutes WHERE institute_id = ?',
+      "SELECT institute_id FROM institutes WHERE institute_id = ?",
       [institute_id]
     );
+    // console.log("6. Institute check completed", instRows);
+
     if (instRows.length === 0) {
       await conn.end();
-      return res.status(400).json({ message: 'Invalid institute_id. Create institute first.' });
+      return res.status(400).json({
+        message: "Invalid institute_id. Create institute first.",
+      });
     }
 
+    // console.log("7. Hashing password...");
     const password_hash = await bcrypt.hash(password, 10);
+    // console.log("8. Password hashed");
 
+    // console.log("9. Inserting user...");
     const [result] = await conn.execute(
       `INSERT INTO users
-        (institute_id, department_id, email, password_hash, role, first_name, last_name, phone, is_active)
-       VALUES (?, NULL, ?, ?, 'institute', ?, ?, ?, 1)`,
+      (institute_id, department_id, email, password_hash, role, first_name, last_name, phone, is_active)
+      VALUES (?, NULL, ?, ?, 'institute', ?, ?, ?, 1)`,
       [
         institute_id,
         email,
         password_hash,
         first_name,
         last_name,
-        phone || null
+        phone || null,
       ]
     );
+
+    // console.log("10. User inserted", result);
 
     await conn.end();
 
     return res.status(201).json({
-      message: 'Institute admin created successfully',
-      user_id: result.insertId
+      message: "Institute admin created successfully",
+      user_id: result.insertId,
     });
   } catch (err) {
-    if (conn) await conn.end();
-    console.error('Admin registration error:', err);
-    return res.status(500).json({ message: 'Database error' });
+    console.error("Registration Error:", err);
+
+    if (conn) {
+      await conn.end();
+    }
+
+    return res.status(500).json({
+      message: "Database error",
+      error: err.message,
+    });
   }
 });
-
 
 // ====================== DEPARTMENT ADMIN REGISTRATION ======================
 // POST /api/auth/department-user-register

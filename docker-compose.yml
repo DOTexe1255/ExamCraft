@@ -9,16 +9,18 @@ services:
       - ./backend:/app
       - /app/node_modules
     command: ["node", "index.js"]
-    depends_on:
-      database:
-        condition: service_healthy
-    environment:
-      MYSQL_HOST: database
-      MYSQL_USER: root
-      MYSQL_PASSWORD: password
-      MYSQL_DATABASE: examcraft
-      MYSQL_PORT: 3306
-
+    # for local development, you can uncomment the following lines to use a local MySQL database instead of the Aiven cloud database. Make sure to set the correct environment variables in the .env file.
+    # depends_on:
+    #   database:
+    #     condition: service_healthy
+    # environment:
+    #   MYSQL_HOST: database
+    #   MYSQL_USER: root
+    #   MYSQL_PASSWORD: password
+    #   MYSQL_DATABASE: examcraft
+    #   MYSQL_PORT: 3306
+    env_file:
+      - ./backend/.env
   frontend:
     build:
       context: ./frontend
