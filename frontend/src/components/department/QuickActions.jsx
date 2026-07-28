@@ -8,24 +8,30 @@ const QuickActions = ({ instituteId, departmentId }) => {
 
   const handleAddStudent = async (studentData) => {
     try {
-      const response = await fetch('/api/auth/register', {
+      const payload = {
+        ...studentData,
+        institute_id: Number(instituteId || studentData.institute_id || 1),
+        department_id: Number(departmentId || studentData.department_id || 1)
+      };
+
+      const response = await fetch('http://localhost:3000/api/auth/student-register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(studentData)
+        body: JSON.stringify(payload)
       });
 
+      const responseData = await response.json().catch(() => ({}));
+
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to create student');
+        const detailMessage = responseData?.details?.join?.(', ');
+        throw new Error(responseData.message || detailMessage || 'Failed to create student');
       }
 
-      const student = await response.json();
       setIsAddStudentOpen(false);
-      console.log('✅ Student created:', student);
-      
+      console.log('✅ Student created:', responseData);
     } catch (error) {
       console.error('❌ Error creating student:', error);
-      alert(error.message || 'Failed to create student');
+      throw error;
     }
   };
 

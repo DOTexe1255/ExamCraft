@@ -13,6 +13,7 @@ const AddStudentModal = ({ isOpen, onClose, onSubmit, instituteId, departmentId 
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
 
   useEffect(() => {
     if (isOpen) {
@@ -26,6 +27,7 @@ const AddStudentModal = ({ isOpen, onClose, onSubmit, instituteId, departmentId 
         password: ''
       });
       setErrors({});
+      setSubmitError('');
       setShowPassword(false);
     }
   }, [isOpen]);
@@ -70,13 +72,28 @@ const AddStudentModal = ({ isOpen, onClose, onSubmit, instituteId, departmentId 
     if (!validateForm()) return;
 
     setIsSubmitting(true);
+    setSubmitError('');
 
     try {
-      // Simulate a successful submission
-      alert('Student added successfully!');
-      onClose();
+      const payload = {
+        first_name: formData.first_name.trim(),
+        last_name: formData.last_name.trim(),
+        email: formData.email.trim(),
+        password: (formData.password || '').trim() || 'Student@1234',
+        role: 'student',
+        institute_id: Number(instituteId),
+        department_id: Number(departmentId),
+        phone: formData.phone.trim() || null
+      };
+
+      if (typeof onSubmit === 'function') {
+        await onSubmit(payload);
+      } else {
+        onClose();
+      }
     } catch (error) {
       console.error('Submission error:', error);
+      setSubmitError(error?.message || 'Failed to add student. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -241,6 +258,12 @@ const AddStudentModal = ({ isOpen, onClose, onSubmit, instituteId, departmentId 
             {errors.password && <p className="mt-1 text-sm text-red-600">{errors.password}</p>}
             <p className="mt-1 text-xs text-gray-500">Auto-generated if left empty</p>
           </div>
+
+          {submitError && (
+            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {submitError}
+            </div>
+          )}
 
           <div className="flex gap-3 pt-6 border-t border-gray-100">
             <button
