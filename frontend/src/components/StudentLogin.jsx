@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
+import { setStoredAuth } from "./ProtectedRoute";
 
 const StudentLogin = () => {
   const [form, setForm] = useState({ email: "", password: "" });
@@ -32,7 +33,7 @@ const StudentLogin = () => {
     setError("");
     try {
       await new Promise((r) => setTimeout(r, 700));
-      console.log("student CBT login payload", form);
+      setStoredAuth({ isAuthenticated: true, role: "student", email: form.email });
       navigate("/student-dashboard", { replace: true });
     } catch (err) {
       console.error(err);
