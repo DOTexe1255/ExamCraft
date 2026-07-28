@@ -10,11 +10,12 @@ const AddDepartmentModal = ({ isOpen, onClose, onSubmit, instituteId }) => {
     head_phone: '',
     head_password: ''
   });
+
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Reset form when modal opens
+  // Reset modal form every time it opens
   useEffect(() => {
     if (isOpen) {
       setFormData({
@@ -31,28 +32,49 @@ const AddDepartmentModal = ({ isOpen, onClose, onSubmit, instituteId }) => {
     }
   }, [isOpen]);
 
+  // Validate all fields before submitting
   const validateForm = () => {
     const newErrors = {};
 
-    // Department validation
-    if (!formData.name.trim() || formData.name.length < 2 || formData.name.length > 100) {
+    // Department name validation
+    if (!formData.name.trim() || formData.name.trim().length < 2 || formData.name.trim().length > 100) {
       newErrors.name = 'Department name must be 2-100 characters';
     }
-    if (!formData.code.trim() || !/^[a-zA-Z0-9]+$/.test(formData.code) || formData.code.length > 20) {
+
+    // Department code validation
+    if (!formData.code.trim() || !/^[a-zA-Z0-9]+$/.test(formData.code.trim()) || formData.code.trim().length > 20) {
       newErrors.code = 'Code must be alphanumeric, 1-20 characters';
     }
-    if (formData.head_email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.head_email)) {
+
+    // Email validation if entered
+    if (formData.head_email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.head_email.trim())) {
       newErrors.head_email = 'Please enter a valid email address';
     }
 
-    // Department Admin validation
-    const headDetailsProvided = formData.head_email && formData.head_first_name && formData.head_last_name;
-    
-    if (headDetailsProvided) {
-      if (formData.head_first_name.length < 2 || formData.head_first_name.length > 50) {
+    // If any head details are started, require all main details
+    const hasAnyHeadDetail =
+      formData.head_email.trim() ||
+      formData.head_first_name.trim() ||
+      formData.head_last_name.trim() ||
+      formData.head_phone.trim() ||
+      formData.head_password.trim();
+
+    const hasRequiredHeadFields =
+      formData.head_email.trim() &&
+      formData.head_first_name.trim() &&
+      formData.head_last_name.trim();
+
+    if (hasAnyHeadDetail && !hasRequiredHeadFields) {
+      newErrors.head_email = newErrors.head_email || 'Complete all head details or leave them blank';
+      newErrors.head_first_name = newErrors.head_first_name || 'Complete all head details or leave them blank';
+      newErrors.head_last_name = newErrors.head_last_name || 'Complete all head details or leave them blank';
+    }
+
+    if (hasRequiredHeadFields) {
+      if (formData.head_first_name.trim().length < 2 || formData.head_first_name.trim().length > 50) {
         newErrors.head_first_name = 'First name must be 2-50 characters';
       }
-      if (formData.head_last_name.length < 2 || formData.head_last_name.length > 50) {
+      if (formData.head_last_name.trim().length < 2 || formData.head_last_name.trim().length > 50) {
         newErrors.head_last_name = 'Last name must be 2-50 characters';
       }
       if (!formData.head_password || formData.head_password.length < 6) {
@@ -64,24 +86,26 @@ const AddDepartmentModal = ({ isOpen, onClose, onSubmit, instituteId }) => {
     return Object.keys(newErrors).length === 0;
   };
 
+  // Update input values
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData({
-      ...formData,
+    setFormData((prev) => ({
+      ...prev,
       [name]: value
-    });
+    }));
+
     if (errors[name]) {
-      setErrors({ ...errors, [name]: '' });
+      setErrors((prev) => ({ ...prev, [name]: '' }));
     }
   };
 
+  // Submit department + optional department admin details
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
     if (!validateForm()) return;
 
     setIsSubmitting(true);
-    
+
     try {
       const departmentData = {
         institute_id: instituteId,
@@ -90,21 +114,25 @@ const AddDepartmentModal = ({ isOpen, onClose, onSubmit, instituteId }) => {
         head_email: formData.head_email.trim() || null
       };
 
-      const headDetailsProvided = formData.head_email && formData.head_first_name && formData.head_last_name;
-      
-      const departmentAdminData = headDetailsProvided ? {
-        first_name: formData.head_first_name.trim(),
-        last_name: formData.head_last_name.trim(),
-        email: formData.head_email.trim(),
-        password: formData.head_password, // Use custom password
-        role: 'department',
-        institute_id: instituteId,
-        department_id: null, // Set after department creation
-        phone: formData.head_phone.trim() || null
-      } : null;
+      const headDetailsProvided =
+        formData.head_email.trim() &&
+        formData.head_first_name.trim() &&
+        formData.head_last_name.trim();
+
+      const departmentAdminData = headDetailsProvided
+        ? {
+            first_name: formData.head_first_name.trim(),
+            last_name: formData.head_last_name.trim(),
+            email: formData.head_email.trim(),
+            password: formData.head_password,
+            role: 'department',
+            institute_id: instituteId,
+            department_id: null,
+            phone: formData.head_phone.trim() || null
+          }
+        : null;
 
       await onSubmit({ departmentData, departmentAdminData });
-      
     } catch (error) {
       console.error('Submission error:', error);
     } finally {
@@ -114,17 +142,28 @@ const AddDepartmentModal = ({ isOpen, onClose, onSubmit, instituteId }) => {
 
   if (!isOpen) return null;
 
-  const hasHeadDetails = formData.head_email || formData.head_first_name || formData.head_last_name;
-  const headDetailsProvided = formData.head_email && formData.head_first_name && formData.head_last_name;
+  const hasAnyHeadDetail =
+    formData.head_email || formData.head_first_name || formData.head_last_name || formData.head_phone || formData.head_password;
+
+  const headDetailsProvided =
+    formData.head_email.trim() &&
+    formData.head_first_name.trim() &&
+    formData.head_last_name.trim();
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl" onClick={(e) => e.stopPropagation()}>
+    <div
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="px-6 pt-6 pb-4 border-b border-gray-100">
           <div className="flex items-center justify-between">
             <h3 className="text-xl font-bold text-gray-900">Add New Department</h3>
-            <button 
+            <button
               onClick={onClose}
               className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
               aria-label="Close modal"
@@ -158,8 +197,8 @@ const AddDepartmentModal = ({ isOpen, onClose, onSubmit, instituteId }) => {
                 onChange={handleInputChange}
                 required
                 className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-institute-500 transition-all duration-200 text-sm ${
-                  errors.name 
-                    ? 'border-red-300 focus:border-red-500 focus:ring-red-500' 
+                  errors.name
+                    ? 'border-red-300 focus:border-red-500 focus:ring-red-500'
                     : 'border-gray-200 focus:border-institute-500'
                 }`}
                 placeholder="e.g., Computer Science & Engineering"
@@ -180,8 +219,8 @@ const AddDepartmentModal = ({ isOpen, onClose, onSubmit, instituteId }) => {
                 required
                 maxLength={20}
                 className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-institute-500 transition-all duration-200 text-sm uppercase ${
-                  errors.code 
-                    ? 'border-red-300 focus:border-red-500 focus:ring-red-500' 
+                  errors.code
+                    ? 'border-red-300 focus:border-red-500 focus:ring-red-500'
                     : 'border-gray-200 focus:border-institute-500'
                 }`}
                 placeholder="e.g., CSE"
@@ -193,11 +232,15 @@ const AddDepartmentModal = ({ isOpen, onClose, onSubmit, instituteId }) => {
           {/* Head of Department Details */}
           <div className="space-y-6">
             <div className="border-b border-gray-100 pb-4">
-              <h4 className="text-lg font-semibold text-gray-900 mb-1">Head of Department {headDetailsProvided ? '(Required)' : '(Optional)'}</h4>
-              <p className="text-sm text-gray-500">{headDetailsProvided ? 'Complete all fields to create department admin account' : 'Create department admin account automatically'}</p>
+              <h4 className="text-lg font-semibold text-gray-900 mb-1">
+                Head of Department {headDetailsProvided ? '(Required)' : '(Optional)'}
+              </h4>
+              <p className="text-sm text-gray-500">
+                {headDetailsProvided ? 'Complete all fields to create department admin account' : 'You can leave these fields blank'}
+              </p>
             </div>
 
-            {hasHeadDetails && (
+            {hasAnyHeadDetail && (
               <>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
@@ -211,14 +254,15 @@ const AddDepartmentModal = ({ isOpen, onClose, onSubmit, instituteId }) => {
                       value={formData.head_first_name}
                       onChange={handleInputChange}
                       className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-institute-500 transition-all duration-200 text-sm ${
-                        errors.head_first_name 
-                          ? 'border-red-300 focus:border-red-500 focus:ring-red-500' 
+                        errors.head_first_name
+                          ? 'border-red-300 focus:border-red-500 focus:ring-red-500'
                           : 'border-gray-200 focus:border-institute-500'
                       }`}
                       placeholder="e.g., John"
                     />
                     {errors.head_first_name && <p className="mt-1 text-sm text-red-600">{errors.head_first_name}</p>}
                   </div>
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2" htmlFor="head_last_name">
                       Last Name {headDetailsProvided ? '*' : ''}
@@ -230,8 +274,8 @@ const AddDepartmentModal = ({ isOpen, onClose, onSubmit, instituteId }) => {
                       value={formData.head_last_name}
                       onChange={handleInputChange}
                       className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-institute-500 transition-all duration-200 text-sm ${
-                        errors.head_last_name 
-                          ? 'border-red-300 focus:border-red-500 focus:ring-red-500' 
+                        errors.head_last_name
+                          ? 'border-red-300 focus:border-red-500 focus:ring-red-500'
                           : 'border-gray-200 focus:border-institute-500'
                       }`}
                       placeholder="e.g., Doe"
@@ -239,31 +283,27 @@ const AddDepartmentModal = ({ isOpen, onClose, onSubmit, instituteId }) => {
                     {errors.head_last_name && <p className="mt-1 text-sm text-red-600">{errors.head_last_name}</p>}
                   </div>
                 </div>
-              </>
-            )}
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2" htmlFor="head_email">
-                Email Address {headDetailsProvided ? '*' : ''}
-              </label>
-              <input
-                id="head_email"
-                type="email"
-                name="head_email"
-                value={formData.head_email}
-                onChange={handleInputChange}
-                className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-institute-500 transition-all duration-200 text-sm ${
-                  errors.head_email 
-                    ? 'border-red-300 focus:border-red-500 focus:ring-red-500' 
-                    : 'border-gray-200 focus:border-institute-500'
-                }`}
-                placeholder="hod@department.institute.edu"
-              />
-              {errors.head_email && <p className="mt-1 text-sm text-red-600">{errors.head_email}</p>}
-            </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2" htmlFor="head_email">
+                    Email Address {headDetailsProvided ? '*' : ''}
+                  </label>
+                  <input
+                    id="head_email"
+                    type="email"
+                    name="head_email"
+                    value={formData.head_email}
+                    onChange={handleInputChange}
+                    className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-institute-500 transition-all duration-200 text-sm ${
+                      errors.head_email
+                        ? 'border-red-300 focus:border-red-500 focus:ring-red-500'
+                        : 'border-gray-200 focus:border-institute-500'
+                    }`}
+                    placeholder="hod@department.institute.edu"
+                  />
+                  {errors.head_email && <p className="mt-1 text-sm text-red-600">{errors.head_email}</p>}
+                </div>
 
-            {headDetailsProvided && (
-              <>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2" htmlFor="head_phone">
                     Phone (Optional)
@@ -287,14 +327,14 @@ const AddDepartmentModal = ({ isOpen, onClose, onSubmit, instituteId }) => {
                   <div className="relative">
                     <input
                       id="head_password"
-                      type={showPassword ? "text" : "password"}
+                      type={showPassword ? 'text' : 'password'}
                       name="head_password"
                       value={formData.head_password}
                       onChange={handleInputChange}
                       required={headDetailsProvided}
                       className={`w-full pr-12 px-4 py-3 border rounded-xl focus:ring-2 focus:ring-institute-500 transition-all duration-200 text-sm ${
-                        errors.head_password 
-                          ? 'border-red-300 focus:border-red-500 focus:ring-red-500' 
+                        errors.head_password
+                          ? 'border-red-300 focus:border-red-500 focus:ring-red-500'
                           : 'border-gray-200 focus:border-institute-500'
                       }`}
                       placeholder="Enter secure password (min 6 chars)"
