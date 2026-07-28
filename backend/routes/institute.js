@@ -6,31 +6,25 @@ const instituteregisterschema = require('../models/instituteregisterSchema');
 
 // POST /api/institute
 // Purpose: Create a new institute.
-//
-// Sample JSON:
-// {
-//   "name": "Tech Institute Pune",
-//   "code": "TI001",
-//   "address": "Pune, Maharashtra",
-//   "contact_email": "admin@techinst.com",
-//   "phone": "9876543210"
-// }
 router.post('/', async (req, res) => {
-     const { error, value } = instituteregisterschema.validate(req.body, { abortEarly: false });
+  // Validate input body using Joi schema
+  const { error, value } = instituteregisterschema.validate(req.body, {
+    abortEarly: false,
+  });
+
   if (error) {
     return res.status(400).json({
       message: 'Validation error',
-      details: error.details.map(d => d.message)
+      details: error.details.map((d) => d.message),
     });
   }
-  const { name, code, address, contact_email, phone } = req.body;
 
-  if (!name || !code) {
-    return res.status(400).json({ message: 'name and code are required' });
-  }
+  // Use validated data instead of raw req.body
+  const { name, code, address, contact_email, phone } = value;
 
   let conn;
   try {
+    // Get a pooled MySQL connection
     conn = await connectToMySQL();
 
     // Ensure institute code is unique
@@ -38,27 +32,28 @@ router.post('/', async (req, res) => {
       'SELECT institute_id FROM institutes WHERE code = ?',
       [code]
     );
+
     if (existing.length > 0) {
-      await conn.end();
       return res.status(409).json({ message: 'Institute code already exists' });
     }
 
+    // Insert the institute record
     const [result] = await conn.execute(
       `INSERT INTO institutes (name, code, address, contact_email, phone)
        VALUES (?, ?, ?, ?, ?)`,
       [name, code, address || null, contact_email || null, phone || null]
     );
 
-    await conn.end();
-
     return res.status(201).json({
       message: 'Institute created successfully',
-      institute_id: result.insertId
+      institute_id: result.insertId,
     });
   } catch (err) {
-    if (conn) await conn.end();
     console.error('Create institute error:', err);
-    return res.status(500).json({ message: 'Database error' });
+    return res.status(500).json({ message: 'Database error', error: err.message });
+  } finally {
+    // Release pooled connection back to MySQL
+    if (conn) conn.release();
   }
 });
 
