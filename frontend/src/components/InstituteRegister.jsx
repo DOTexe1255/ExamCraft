@@ -9,8 +9,17 @@ const InstituteRegisterPage = () => {
     contact_email: "",
     phone: ""
   });
+  const [adminForm, setAdminForm] = useState({
+    first_name: "",
+    last_name: "",
+    email: "",
+    password: "",
+    phone: ""
+  });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [step, setStep] = useState("institute");
+  const [instituteId, setInstituteId] = useState(null);
   const [popup, setPopup] = useState({ open: false, type: "success", message: "" });
   const navigate = useNavigate?.() || (() => {});
   const popupTimerRef = useRef(null);
@@ -43,7 +52,13 @@ const InstituteRegisterPage = () => {
     setError("");
   };
 
-  const validate = () => {
+  const handleAdminChange = (e) => {
+    const { name, value } = e.target;
+    setAdminForm((s) => ({ ...s, [name]: value }));
+    setError("");
+  };
+
+  const validateInstitute = () => {
     if (!formData.name.trim()) return "Institute name is required";
     if (formData.name.trim().length < 2) return "Institute name must be at least 2 characters";
     if (!formData.code.trim()) return "Institute code is required";
@@ -53,9 +68,18 @@ const InstituteRegisterPage = () => {
     return "";
   };
 
-  const handleSubmit = async (e) => {
+  const validateAdmin = () => {
+    if (!adminForm.first_name.trim()) return "First name is required";
+    if (!adminForm.last_name.trim()) return "Last name is required";
+    if (!adminForm.email.trim()) return "Admin email is required";
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(adminForm.email)) return "Enter a valid admin email";
+    if (!adminForm.password || adminForm.password.length < 6) return "Password must be at least 6 characters";
+    return "";
+  };
+
+  const handleInstituteSubmit = async (e) => {
     e.preventDefault();
-    const v = validate();
+    const v = validateInstitute();
     if (v) {
       setError(v);
       return;
@@ -84,13 +108,69 @@ const InstituteRegisterPage = () => {
         throw new Error(data?.message || details || 'Institute registration failed');
       }
 
-      console.log('Institute created successfully:', data);
-      showPopup("success", "Institute created successfully", () => navigate("/login"));
+      const nextInstituteId = data?.institute_id;
+      if (!nextInstituteId) {
+        throw new Error('Institute ID was not returned by the server.');
+      }
+
+      setInstituteId(nextInstituteId);
+      setStep('admin');
+      showPopup('success', 'Institute created successfully. Please create your admin account.', () => {});
     } catch (err) {
       console.error(err);
-      const message = err?.message || "Registration failed. Try again.";
+      const message = err?.message || 'Registration failed. Try again.';
       setError(message);
-      showPopup("error", message);
+      showPopup('error', message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAdminSubmit = async (e) => {
+    e.preventDefault();
+    const v = validateAdmin();
+    if (v) {
+      setError(v);
+      return;
+    }
+
+    if (!instituteId) {
+      setError('Institute ID is missing. Please create institute first.');
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+    try {
+      const response = await fetch('http://localhost:3000/api/auth/institute-admin-register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          first_name: adminForm.first_name.trim(),
+          last_name: adminForm.last_name.trim(),
+          email: adminForm.email.trim(),
+          password: adminForm.password,
+          role: 'institute',
+          institute_id: instituteId,
+          phone: adminForm.phone.trim() || null
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        const details = Array.isArray(data?.details) ? data.details.join(', ') : '';
+        throw new Error(data?.message || details || 'Admin registration failed');
+      }
+
+      showPopup('success', 'Institute admin created successfully', () => navigate('/login'));
+    } catch (err) {
+      console.error(err);
+      const message = err?.message || 'Admin registration failed. Try again.';
+      setError(message);
+      showPopup('error', message);
     } finally {
       setLoading(false);
     }
@@ -206,7 +286,7 @@ const InstituteRegisterPage = () => {
               <p className="text-xl text-gray-600 font-medium">Enter institute details and send them to the backend</p>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-6">
+            <form onSubmit={step === "institute" ? handleInstituteSubmit : handleAdminSubmit} className="space-y-6">
               {error && (
                 <div className="text-sm text-red-600 bg-gradient-to-r from-red-50 to-red-100 p-4 rounded-2xl border border-red-200 flex items-start gap-3">
                   <svg className="w-5 h-5 text-red-500 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24">
@@ -216,96 +296,204 @@ const InstituteRegisterPage = () => {
                 </div>
               )}
 
-              {/* Institute Name */}
-              <div>
-                <label className="block text-sm font-bold text-gray-900 mb-3">Institute Name *</label>
-                <input
-                  name="name"
-                  type="text"
-                  value={formData.name}
-                  onChange={handleChange}
-                  placeholder="e.g., Tech Institute Pune"
-                  className="w-full px-5 py-4 rounded-2xl border-2 border-gray-200 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100/50 outline-none bg-white/50 backdrop-blur-sm text-lg placeholder-gray-500 transition-all duration-300 hover:border-emerald-300"
-                  autoComplete="organization"
-                />
+              <div className="flex items-center justify-center gap-3">
+                <div className={`flex h-9 w-9 items-center justify-center rounded-full text-sm font-bold ${step === "institute" ? "bg-emerald-600 text-white" : "bg-emerald-100 text-emerald-700"}`}>
+                  1
+                </div>
+                <div className="h-1 w-12 rounded-full bg-gray-200" />
+                <div className={`flex h-9 w-9 items-center justify-center rounded-full text-sm font-bold ${step === "admin" ? "bg-emerald-600 text-white" : "bg-gray-100 text-gray-700"}`}>
+                  2
+                </div>
               </div>
 
-              {/* Email */}
-              <div>
-                <label className="block text-sm font-bold text-gray-900 mb-3">Institute Code *</label>
-                <input
-                  name="code"
-                  type="text"
-                  value={formData.code}
-                  onChange={handleChange}
-                  placeholder="e.g., TI001"
-                  className="w-full px-5 py-4 rounded-2xl border-2 border-gray-200 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100/50 outline-none bg-white/50 backdrop-blur-sm text-lg placeholder-gray-500 transition-all duration-300 hover:border-emerald-300"
-                  autoComplete="off"
-                />
-              </div>
+              {step === "institute" ? (
+                <>
+                  <div>
+                    <label className="block text-sm font-bold text-gray-900 mb-3">Institute Name *</label>
+                    <input
+                      name="name"
+                      type="text"
+                      value={formData.name}
+                      onChange={handleChange}
+                      placeholder="e.g., Tech Institute Pune"
+                      className="w-full px-5 py-4 rounded-2xl border-2 border-gray-200 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100/50 outline-none bg-white/50 backdrop-blur-sm text-lg placeholder-gray-500 transition-all duration-300 hover:border-emerald-300"
+                      autoComplete="organization"
+                    />
+                  </div>
 
-              {/* Password */}
-              <div>
-                <label className="block text-sm font-bold text-gray-900 mb-3">Address</label>
-                <input
-                  name="address"
-                  type="text"
-                  value={formData.address}
-                  onChange={handleChange}
-                  placeholder="e.g., Pune, Maharashtra"
-                  className="w-full px-5 py-4 rounded-2xl border-2 border-gray-200 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100/50 outline-none bg-white/50 backdrop-blur-sm text-lg placeholder-gray-500 transition-all duration-300 hover:border-emerald-300"
-                  autoComplete="street-address"
-                />
-              </div>
+                  <div>
+                    <label className="block text-sm font-bold text-gray-900 mb-3">Institute Code *</label>
+                    <input
+                      name="code"
+                      type="text"
+                      value={formData.code}
+                      onChange={handleChange}
+                      placeholder="e.g., TI001"
+                      className="w-full px-5 py-4 rounded-2xl border-2 border-gray-200 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100/50 outline-none bg-white/50 backdrop-blur-sm text-lg placeholder-gray-500 transition-all duration-300 hover:border-emerald-300"
+                      autoComplete="off"
+                    />
+                  </div>
 
-              <div>
-                <label className="block text-sm font-bold text-gray-900 mb-3">Contact Email</label>
-                <input
-                  name="contact_email"
-                  type="email"
-                  value={formData.contact_email}
-                  onChange={handleChange}
-                  placeholder="admin@yourinstitute.com"
-                  className="w-full px-5 py-4 rounded-2xl border-2 border-gray-200 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100/50 outline-none bg-white/50 backdrop-blur-sm text-lg placeholder-gray-500 transition-all duration-300 hover:border-emerald-300"
-                  autoComplete="email"
-                />
-              </div>
+                  <div>
+                    <label className="block text-sm font-bold text-gray-900 mb-3">Address</label>
+                    <input
+                      name="address"
+                      type="text"
+                      value={formData.address}
+                      onChange={handleChange}
+                      placeholder="e.g., Pune, Maharashtra"
+                      className="w-full px-5 py-4 rounded-2xl border-2 border-gray-200 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100/50 outline-none bg-white/50 backdrop-blur-sm text-lg placeholder-gray-500 transition-all duration-300 hover:border-emerald-300"
+                      autoComplete="street-address"
+                    />
+                  </div>
 
-              <div>
-                <label className="block text-sm font-bold text-gray-900 mb-3">Phone</label>
-                <input
-                  name="phone"
-                  type="tel"
-                  value={formData.phone}
-                  onChange={handleChange}
-                  placeholder="9876543210"
-                  className="w-full px-5 py-4 rounded-2xl border-2 border-gray-200 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100/50 outline-none bg-white/50 backdrop-blur-sm text-lg placeholder-gray-500 transition-all duration-300 hover:border-emerald-300"
-                  autoComplete="tel"
-                />
-              </div>
+                  <div>
+                    <label className="block text-sm font-bold text-gray-900 mb-3">Contact Email</label>
+                    <input
+                      name="contact_email"
+                      type="email"
+                      value={formData.contact_email}
+                      onChange={handleChange}
+                      placeholder="admin@yourinstitute.com"
+                      className="w-full px-5 py-4 rounded-2xl border-2 border-gray-200 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100/50 outline-none bg-white/50 backdrop-blur-sm text-lg placeholder-gray-500 transition-all duration-300 hover:border-emerald-300"
+                      autoComplete="email"
+                    />
+                  </div>
 
-              <button
-                type="submit"
-                disabled={loading}
-                className="group relative w-full inline-flex items-center justify-center gap-4 px-8 py-5 rounded-3xl bg-gradient-to-r from-emerald-600 to-emerald-700 text-white font-black text-xl shadow-2xl hover:shadow-3xl hover:-translate-y-1 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-500 overflow-hidden transform hover:scale-[1.02]"
-              >
-                {loading ? (
-                  <>
-                    <svg className="animate-spin h-6 w-6" viewBox="0 0 24 24" fill="none">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3"/>
-                    </svg>
-                    <span>Creating Institute...</span>
-                  </>
-                ) : (
-                  <>
-                    <svg className="w-6 h-6 group-hover:scale-110 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-                    </svg>
-                    <span>Submit Institute Details</span>
-                    <div className="absolute -right-4 group-hover:right-0 bg-white/30 w-20 h-20 rounded-full blur-xl -z-10 transition-all duration-500"></div>
-                  </>
-                )}
-              </button>
+                  <div>
+                    <label className="block text-sm font-bold text-gray-900 mb-3">Phone</label>
+                    <input
+                      name="phone"
+                      type="tel"
+                      value={formData.phone}
+                      onChange={handleChange}
+                      placeholder="9876543210"
+                      className="w-full px-5 py-4 rounded-2xl border-2 border-gray-200 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100/50 outline-none bg-white/50 backdrop-blur-sm text-lg placeholder-gray-500 transition-all duration-300 hover:border-emerald-300"
+                      autoComplete="tel"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="group relative w-full inline-flex items-center justify-center gap-4 px-8 py-5 rounded-3xl bg-gradient-to-r from-emerald-600 to-emerald-700 text-white font-black text-xl shadow-2xl hover:shadow-3xl hover:-translate-y-1 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-500 overflow-hidden transform hover:scale-[1.02]"
+                  >
+                    {loading ? (
+                      <>
+                        <svg className="animate-spin h-6 w-6" viewBox="0 0 24 24" fill="none">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3"/>
+                        </svg>
+                        <span>Creating Institute...</span>
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-6 h-6 group-hover:scale-110 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                        </svg>
+                        <span>Create Institute</span>
+                        <div className="absolute -right-4 group-hover:right-0 bg-white/30 w-20 h-20 rounded-full blur-xl -z-10 transition-all duration-500"></div>
+                      </>
+                    )}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
+                    Institute created successfully. Add the admin account for your institute.
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-bold text-gray-900 mb-3">First Name *</label>
+                    <input
+                      name="first_name"
+                      type="text"
+                      value={adminForm.first_name}
+                      onChange={handleAdminChange}
+                      placeholder="e.g., John"
+                      className="w-full px-5 py-4 rounded-2xl border-2 border-gray-200 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100/50 outline-none bg-white/50 backdrop-blur-sm text-lg placeholder-gray-500 transition-all duration-300 hover:border-emerald-300"
+                      autoComplete="given-name"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-bold text-gray-900 mb-3">Last Name *</label>
+                    <input
+                      name="last_name"
+                      type="text"
+                      value={adminForm.last_name}
+                      onChange={handleAdminChange}
+                      placeholder="e.g., Doe"
+                      className="w-full px-5 py-4 rounded-2xl border-2 border-gray-200 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100/50 outline-none bg-white/50 backdrop-blur-sm text-lg placeholder-gray-500 transition-all duration-300 hover:border-emerald-300"
+                      autoComplete="family-name"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-bold text-gray-900 mb-3">Admin Email *</label>
+                    <input
+                      name="email"
+                      type="email"
+                      value={adminForm.email}
+                      onChange={handleAdminChange}
+                      placeholder="admin@yourinstitute.com"
+                      className="w-full px-5 py-4 rounded-2xl border-2 border-gray-200 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100/50 outline-none bg-white/50 backdrop-blur-sm text-lg placeholder-gray-500 transition-all duration-300 hover:border-emerald-300"
+                      autoComplete="email"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-bold text-gray-900 mb-3">Password *</label>
+                    <input
+                      name="password"
+                      type="password"
+                      value={adminForm.password}
+                      onChange={handleAdminChange}
+                      placeholder="Minimum 6 characters"
+                      className="w-full px-5 py-4 rounded-2xl border-2 border-gray-200 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100/50 outline-none bg-white/50 backdrop-blur-sm text-lg placeholder-gray-500 transition-all duration-300 hover:border-emerald-300"
+                      autoComplete="new-password"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-bold text-gray-900 mb-3">Phone</label>
+                    <input
+                      name="phone"
+                      type="tel"
+                      value={adminForm.phone}
+                      onChange={handleAdminChange}
+                      placeholder="9876543210"
+                      className="w-full px-5 py-4 rounded-2xl border-2 border-gray-200 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100/50 outline-none bg-white/50 backdrop-blur-sm text-lg placeholder-gray-500 transition-all duration-300 hover:border-emerald-300"
+                      autoComplete="tel"
+                    />
+                  </div>
+
+                  <div className="flex gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setStep("institute")}
+                      className="flex-1 inline-flex items-center justify-center rounded-2xl border border-gray-300 px-4 py-4 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
+                    >
+                      Back
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className="flex-1 group relative inline-flex items-center justify-center gap-3 rounded-3xl bg-gradient-to-r from-emerald-600 to-emerald-700 px-6 py-4 text-white font-black shadow-2xl hover:shadow-3xl hover:-translate-y-1 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-500"
+                    >
+                      {loading ? (
+                        <>
+                          <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24" fill="none">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3"/>
+                          </svg>
+                          <span>Creating Admin...</span>
+                        </>
+                      ) : (
+                        <span>Create Admin Account</span>
+                      )}
+                    </button>
+                  </div>
+                </>
+              )}
             </form>
 
             <div className="text-center mt-8 pt-6 border-t border-gray-200 flex flex-col gap-2">
