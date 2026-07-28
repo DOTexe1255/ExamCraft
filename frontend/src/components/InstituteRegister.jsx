@@ -63,7 +63,7 @@ const InstituteRegisterPage = () => {
     setLoading(true);
     setError("");
     try {
-      const response = await fetch('/api/institute', {
+      const response = await fetch('http://localhost:3000/api/institute', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
