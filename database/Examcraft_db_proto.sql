@@ -261,7 +261,90 @@ CREATE TABLE IF NOT EXISTS institute_settings (
     FOREIGN KEY (institute_id) REFERENCES institutes(institute_id)
 );
 
+-- 18. Coding Question Details
+CREATE TABLE IF NOT EXISTS coding_question_details (
+    coding_detail_id INT PRIMARY KEY AUTO_INCREMENT,
+    question_id INT NOT NULL UNIQUE,
+    language_type ENUM('java', 'python', 'cpp', 'javascript', 'c') NOT NULL,
+    starter_code TEXT,
+    sample_input TEXT,
+    sample_output TEXT,
+    hidden_test_cases JSON,
+    visible_test_cases JSON,
+    time_limit_ms INT DEFAULT 1000,
+    memory_limit_mb INT DEFAULT 256,
+    FOREIGN KEY (question_id) REFERENCES questions(question_id) ON DELETE CASCADE
+);
 
+-- 19. Exam Proctoring Settings
+CREATE TABLE IF NOT EXISTS exam_proctoring_settings (
+    setting_id INT PRIMARY KEY AUTO_INCREMENT,
+    exam_id INT NOT NULL UNIQUE,
+    block_copy_paste BOOLEAN DEFAULT TRUE,
+    block_right_click BOOLEAN DEFAULT TRUE,
+    detect_tab_switch BOOLEAN DEFAULT TRUE,
+    detect_window_blur BOOLEAN DEFAULT TRUE,
+    detect_fullscreen_exit BOOLEAN DEFAULT TRUE,
+    inactivity_timeout_seconds INT DEFAULT 120,
+    max_idle_warnings INT DEFAULT 3,
+    track_mouse_movement BOOLEAN DEFAULT TRUE,
+    track_keyboard_activity BOOLEAN DEFAULT TRUE,
+    FOREIGN KEY (exam_id) REFERENCES exams(exam_id) ON DELETE CASCADE
+);
+
+-- 20. Student Activity Logs
+CREATE TABLE IF NOT EXISTS student_activity_logs (
+    activity_id INT PRIMARY KEY AUTO_INCREMENT,
+    attempt_id INT NOT NULL,
+    question_id INT NULL,
+    activity_type ENUM(
+        'copy',
+        'paste',
+        'cut',
+        'tab_switch',
+        'window_blur',
+        'fullscreen_exit',
+        'idle_warning',
+        'mouse_move',
+        'keyboard_input',
+        'right_click'
+    ) NOT NULL,
+    activity_value TEXT,
+    activity_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    ip_address VARCHAR(45),
+    user_agent VARCHAR(500),
+    FOREIGN KEY (attempt_id) REFERENCES exam_attempts(attempt_id) ON DELETE CASCADE,
+    FOREIGN KEY (question_id) REFERENCES questions(question_id) ON DELETE SET NULL,
+    INDEX idx_attempt_time (attempt_id, activity_time),
+    INDEX idx_type (activity_type)
+);
+
+-- 21. Coding Submissions
+CREATE TABLE IF NOT EXISTS coding_submissions (
+    submission_id INT PRIMARY KEY AUTO_INCREMENT,
+    attempt_id INT NOT NULL,
+    question_id INT NOT NULL,
+    language_type ENUM('java', 'python', 'cpp', 'javascript', 'c') NOT NULL,
+    source_code MEDIUMTEXT NOT NULL,
+    stdout MEDIUMTEXT,
+    stderr MEDIUMTEXT,
+    status ENUM('pending', 'running', 'accepted', 'wrong_answer', 'compile_error', 'runtime_error', 'time_limit_exceeded') DEFAULT 'pending',
+    marks_obtained DECIMAL(5,2) DEFAULT 0,
+    submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (attempt_id) REFERENCES exam_attempts(attempt_id) ON DELETE CASCADE,
+    FOREIGN KEY (question_id) REFERENCES questions(question_id) ON DELETE CASCADE,
+    INDEX idx_attempt_question (attempt_id, question_id)
+);
+
+
+ALTER TABLE questions
+ADD COLUMN answer_mode ENUM('mcq', 'text', 'code') DEFAULT 'mcq';
+
+ALTER TABLE exam_attempts
+ADD COLUMN last_activity_at TIMESTAMP NULL,
+ADD COLUMN idle_warning_count INT DEFAULT 0,
+ADD COLUMN tab_switch_count INT DEFAULT 0,
+ADD COLUMN fullscreen_exit_count INT DEFAULT 0;
 
 -- -- ---------------------------------------------------   Sample Data  ------------------------------
 
