@@ -6,10 +6,17 @@ require('dotenv').config();
 const cors = require("cors");
 const cookieParser = require('cookie-parser');
 
+
 app.use(cors());
 app.use(express.json()); // Middleware to parse JSON request bodies
 app.use(cookieParser()); // Middleware to parse cookies
 
+app.use(cookieParser());
+app.use(cors({
+  origin: 'http://localhost:${process.env.FRONTEND_PORT || 5173}', // Replace with your frontend URL
+  credentials: true
+}));
+app.use(express.json());
 
 // Connect to MySQL using the connectToMySQL function from db.js
 connectToMySQL();
