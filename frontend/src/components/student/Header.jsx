@@ -1,11 +1,19 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { clearStoredAuth } from '../ProtectedRoute';
+import { useMyContext } from '../../global/MyContext';
 
 const Header = () => {
   const navigate = useNavigate();
+  const authContext = useMyContext();
+  const auth = authContext?.auth || null;
+  const displayName = [auth?.firstName || auth?.user?.first_name, auth?.lastName || auth?.user?.last_name]
+    .filter(Boolean)
+    .join(' ') || 'Student';
+  const studentLabel = auth?.userId || auth?.user?.id ? `Student #${auth.userId || auth?.user?.id}` : 'Student Portal';
 
   const handleLogout = () => {
+    authContext?.clearAuth?.();
     clearStoredAuth();
     localStorage.removeItem('studentToken');
     localStorage.removeItem('studentId');
@@ -21,8 +29,8 @@ const Header = () => {
           <h1 className="text-3xl font-bold bg-gradient-to-r from-student-600 to-student-700 bg-clip-text text-transparent">
             Student Dashboard
           </h1>
-          <p className="text-gray-600 mt-1">Welcome back, John Doe</p>
-          <p className="text-sm text-student-600 font-medium mt-1">CS2024001 (Computer Science)</p>
+          <p className="text-gray-600 mt-1">Welcome back, {displayName}</p>
+          <p className="text-sm text-student-600 font-medium mt-1">{studentLabel}</p>
         </div>
         <button 
           onClick={handleLogout}

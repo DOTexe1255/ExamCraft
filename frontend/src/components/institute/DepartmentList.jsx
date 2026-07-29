@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import AddDepartmentModal from './AddDepartmentModal';
+import { requestJson } from '../../global/api';
 
 const DepartmentList = ({ instituteId }) => {
   const [isAddDepartmentOpen, setIsAddDepartmentOpen] = useState(false);
@@ -7,23 +8,11 @@ const DepartmentList = ({ instituteId }) => {
   const handleAddDepartment = async ({ departmentData, departmentAdminData }) => {
     try {
       // 1. Create department first
-      const departmentResponse = await fetch('/api/departments', {
+      const department = await requestJson('/api/departments', {
         method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          // Add your auth token here if needed
-          // 'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
         body: JSON.stringify(departmentData)
       });
-
-      if (!departmentResponse.ok) {
-        const errorData = await departmentResponse.json();
-        throw new Error(errorData.message || 'Failed to create department');
-      }
-
-      const department = await departmentResponse.json();
-      const departmentId = department.id;
+      const departmentId = department.department_id;
 
       // 2. Create department admin if head details provided
       if (departmentAdminData) {
@@ -32,19 +21,12 @@ const DepartmentList = ({ instituteId }) => {
           department_id: departmentId
         };
 
-        const adminResponse = await fetch('/api/auth/register', {
+        const adminResponse = await requestJson('/api/auth/department-admin-register', {
           method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json',
-            // 'Authorization': `Bearer ${localStorage.getItem('token')}`
-          },
           body: JSON.stringify(adminData)
         });
 
-        if (!adminResponse.ok) {
-          console.warn('Department admin creation failed (department created):', await adminResponse.json());
-          // Department was created successfully, admin can be added later
-        }
+        console.log('✅ Department admin created:', adminResponse);
       }
 
       // Success

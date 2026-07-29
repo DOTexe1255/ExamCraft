@@ -22,6 +22,7 @@ app.use('/api/auth', require('./routes/auth'));
 app.use('/api/institute', require('./routes/institute'));
 app.use('/api/departments', require('./routes/department'));
 app.use('/api/department', require('./routes/department'));
+app.use('/api/exams', require('./routes/exams'));
 app.use('/api/user', require('./routes/userdata'));
 
 app.listen(port, () => {

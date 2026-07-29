@@ -1,6 +1,8 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { setStoredAuth } from "./ProtectedRoute";
+import { requestJson } from "../global/api";
+import { useMyContext } from "../global/MyContext";
 
 const AdministrationLogin = () => {
   const [form, setForm] = useState({ 
@@ -11,6 +13,7 @@ const AdministrationLogin = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const navigate = useNavigate?.() || (() => {});
+  const authContext = useMyContext();
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -36,9 +39,32 @@ const AdministrationLogin = () => {
     setLoading(true);
     setError("");
     try {
-      await new Promise((r) => setTimeout(r, 700));
-      const role = form.role === "institute" ? "institute" : "department";
-      setStoredAuth({ isAuthenticated: true, role, email: form.email });
+      const responseData = await requestJson('/api/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({
+          email: form.email,
+          password: form.password,
+          role: form.role,
+        }),
+      });
+
+      const user = responseData?.user || {};
+      const auth = {
+        isAuthenticated: true,
+        role: user.role || form.role,
+        email: user.email || form.email,
+        userId: user.id || null,
+        firstName: user.first_name || '',
+        lastName: user.last_name || '',
+        instituteId: user.institute_id || null,
+        departmentId: user.department_id || null,
+        user,
+      };
+
+      authContext?.setAuth?.(auth);
+      setStoredAuth(auth);
+
+      const role = auth.role === "institute" ? "institute" : "department";
       const redirectPath = role === "institute" ? "/institute-dashboard" : "/department-dashboard";
       navigate(redirectPath, { replace: true });
     } catch (err) {

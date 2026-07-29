@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import AddDepartmentModal from './AddDepartmentModal';
+import { requestJson } from '../../global/api';
 
 const InstituteQuickActions = () => {
   const [isAddDepartmentOpen, setIsAddDepartmentOpen] = useState(false);
@@ -7,18 +8,11 @@ const InstituteQuickActions = () => {
 const handleAddDepartment = async ({ departmentData, departmentAdminData }) => {
   try {
     // 1. First create department
-    const departmentResponse = await fetch('/api/departments', {
+    const department = await requestJson('/api/departments', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(departmentData)
     });
-
-    if (!departmentResponse.ok) {
-      throw new Error('Failed to create department');
-    }
-
-    const department = await departmentResponse.json();
-    const departmentId = department.id;
+    const departmentId = department.department_id;
 
     // 2. Then create department admin (if head details provided)
     if (departmentAdminData) {
@@ -27,15 +21,12 @@ const handleAddDepartment = async ({ departmentData, departmentAdminData }) => {
         department_id: departmentId
       };
 
-      const adminResponse = await fetch('/api/auth/register', {
+      const adminResponse = await requestJson('/api/auth/department-admin-register', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(adminData)
       });
 
-      if (!adminResponse.ok) {
-        console.error('Admin creation failed, but department was created:', await adminResponse.json());
-      }
+      console.log('✅ Department admin created:', adminResponse);
     }
 
     console.log('Department created successfully:', department);

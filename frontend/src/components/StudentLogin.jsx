@@ -1,6 +1,8 @@
 import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { setStoredAuth } from "./ProtectedRoute";
+import { requestJson } from "../global/api";
+import { useMyContext } from "../global/MyContext";
 
 const StudentLogin = () => {
   const [form, setForm] = useState({ email: "", password: "" });
@@ -8,6 +10,7 @@ const StudentLogin = () => {
   const [error, setError] = useState("");
   const [showForgotWarning, setShowForgotWarning] = useState(false);
   const navigate = useNavigate?.() || (() => {});
+  const authContext = useMyContext();
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -32,8 +35,30 @@ const StudentLogin = () => {
     setLoading(true);
     setError("");
     try {
-      await new Promise((r) => setTimeout(r, 700));
-      setStoredAuth({ isAuthenticated: true, role: "student", email: form.email });
+      const responseData = await requestJson('/api/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({
+          email: form.email,
+          password: form.password,
+          role: 'student',
+        }),
+      });
+
+      const user = responseData?.user || {};
+      const auth = {
+        isAuthenticated: true,
+        role: 'student',
+        email: user.email || form.email,
+        userId: user.id || null,
+        firstName: user.first_name || '',
+        lastName: user.last_name || '',
+        instituteId: user.institute_id || null,
+        departmentId: user.department_id || null,
+        user,
+      };
+
+      authContext?.setAuth?.(auth);
+      setStoredAuth(auth);
       navigate("/student-dashboard", { replace: true });
     } catch (err) {
       console.error(err);

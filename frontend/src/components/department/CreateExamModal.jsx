@@ -82,11 +82,32 @@ const CreateExamModal = ({ isOpen, onClose, onSubmit, instituteId, departmentId 
     setIsSubmitting(true);
 
     try {
-      // Simulate a successful submission
-      alert('Exam created successfully!');
+      if (typeof onSubmit !== 'function') {
+        throw new Error('No exam submit handler provided');
+      }
+
+      await onSubmit({
+        title: formData.title.trim(),
+        description: formData.description.trim(),
+        duration: Number(formData.duration),
+        total_marks: Number(formData.total_marks),
+        passing_marks: Number(formData.passing_marks),
+        start_date: formData.start_date,
+        end_date: formData.end_date,
+        question_count: Number(formData.question_count),
+        exam_type: formData.exam_type,
+        is_active: formData.is_active,
+        institute_id: Number(instituteId),
+        department_id: Number(departmentId),
+      });
+
       onClose();
     } catch (error) {
       console.error('Submission error:', error);
+      setErrors((prev) => ({
+        ...prev,
+        submit: error?.message || 'Failed to create exam',
+      }));
     } finally {
       setIsSubmitting(false);
     }
@@ -109,6 +130,11 @@ const CreateExamModal = ({ isOpen, onClose, onSubmit, instituteId, departmentId 
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
+          {errors.submit && (
+            <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+              {errors.submit}
+            </div>
+          )}
           {/* Basic Info */}
           <div className="space-y-6">
             <div className="border-b border-gray-100 pb-4">

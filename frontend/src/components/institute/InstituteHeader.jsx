@@ -1,11 +1,21 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { clearStoredAuth } from '../ProtectedRoute';
+import { useMyContext } from '../../global/MyContext';
 
 const InstituteHeader = () => {
   const navigate = useNavigate();
+  const authContext = useMyContext();
+  const auth = authContext?.auth || null;
+  const displayName = [auth?.firstName || auth?.user?.first_name, auth?.lastName || auth?.user?.last_name]
+    .filter(Boolean)
+    .join(' ') || 'Institute Admin';
+  const instituteLabel = auth?.instituteId || auth?.user?.institute_id
+    ? `Institute #${auth.instituteId || auth?.user?.institute_id}`
+    : 'Institute Admin Access';
 
   const handleLogout = () => {
+    authContext?.clearAuth?.();
     clearStoredAuth();
     localStorage.removeItem('token');
     localStorage.removeItem('userRole');
@@ -21,8 +31,8 @@ const InstituteHeader = () => {
           <h1 className="text-3xl font-bold bg-gradient-to-r from-institute-600 to-institute-700 bg-clip-text text-transparent">
             Institute Dashboard
           </h1>
-          <p className="text-gray-600 mt-1">Welcome back, Super Admin</p>
-          <p className="text-sm text-institute-600 font-medium">Tech Institute Pune (TI001)</p>
+          <p className="text-gray-600 mt-1">Welcome back, {displayName}</p>
+          <p className="text-sm text-institute-600 font-medium">{instituteLabel}</p>
         </div>
         <div className="flex items-center gap-4">
           <button className="px-4 py-2 bg-institute-600 text-white rounded-xl text-sm font-semibold 

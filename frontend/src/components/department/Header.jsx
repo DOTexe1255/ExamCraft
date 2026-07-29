@@ -1,11 +1,21 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { clearStoredAuth } from '../ProtectedRoute';
+import { useMyContext } from '../../global/MyContext';
 
 const Header = () => {
   const navigate = useNavigate();
+  const authContext = useMyContext();
+  const auth = authContext?.auth || null;
+  const displayName = [auth?.firstName || auth?.user?.first_name, auth?.lastName || auth?.user?.last_name]
+    .filter(Boolean)
+    .join(' ') || 'Department Admin';
+  const departmentLabel = auth?.departmentId || auth?.user?.department_id
+    ? `Department #${auth.departmentId || auth?.user?.department_id}`
+    : 'Department Admin Access';
 
   const handleLogout = () => {
+    authContext?.clearAuth?.();
     clearStoredAuth();
     localStorage.removeItem('teacherToken');
     localStorage.removeItem('teacherId');
@@ -21,8 +31,8 @@ const Header = () => {
           <h1 className="text-3xl font-bold bg-gradient-to-r from-teacher-600 to-teacher-700 bg-clip-text text-transparent">
             Department Dashboard
           </h1>
-          <p className="text-gray-600 mt-1">Welcome back, Professor Sharma</p>
-          <p className="text-sm text-teacher-600 font-medium mt-1">Computer Science Department</p>
+          <p className="text-gray-600 mt-1">Welcome back, {displayName}</p>
+          <p className="text-sm text-teacher-600 font-medium mt-1">{departmentLabel}</p>
         </div>
         <button 
           onClick={handleLogout}

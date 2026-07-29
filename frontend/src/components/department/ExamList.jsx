@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import CreateExamModal from './CreateExamModal';
 import AddStudentModal from './AddStudentModal';
+import { requestJson } from '../../global/api';
 
 const ExamList = ({ instituteId, departmentId }) => {
   const [isCreateExamOpen, setIsCreateExamOpen] = useState(false);
@@ -8,23 +9,12 @@ const ExamList = ({ instituteId, departmentId }) => {
 
   const handleCreateExam = async (examData) => {
     try {
-      const response = await fetch('/api/exams', {
+      const responseData = await requestJson('/api/exams', {
         method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          // 'Authorization': `Bearer ${token}`
-        },
         body: JSON.stringify(examData)
       });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to create exam');
-      }
-
-      const exam = await response.json();
       setIsCreateExamOpen(false);
-      console.log('✅ Exam created:', exam);
+      console.log('✅ Exam created:', responseData);
       // TODO: Refresh exam list, show success toast
       
     } catch (error) {
@@ -35,23 +25,12 @@ const ExamList = ({ instituteId, departmentId }) => {
 
   const handleAddStudent = async (studentData) => {
     try {
-      const response = await fetch('/api/auth/register', {
+      const responseData = await requestJson('/api/auth/student-register', {
         method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          // 'Authorization': `Bearer ${token}`
-        },
         body: JSON.stringify(studentData)
       });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to create student');
-      }
-
-      const student = await response.json();
       setIsAddStudentOpen(false);
-      console.log('✅ Student created:', student);
+      console.log('✅ Student created:', responseData);
       
     } catch (error) {
       console.error('❌ Error creating student:', error);

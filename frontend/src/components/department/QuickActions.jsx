@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import AddStudentModal from './AddStudentModal';
 import CreateExamModal from './CreateExamModal';
+import { requestJson } from '../../global/api';
 
 const QuickActions = ({ instituteId, departmentId }) => {
   const [isAddStudentOpen, setIsAddStudentOpen] = useState(false);
@@ -14,18 +15,10 @@ const QuickActions = ({ instituteId, departmentId }) => {
         department_id: Number(departmentId || studentData.department_id || 1)
       };
 
-      const response = await fetch('http://localhost:3000/api/auth/student-register', {
+      const responseData = await requestJson('/api/auth/student-register', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
-
-      const responseData = await response.json().catch(() => ({}));
-
-      if (!response.ok) {
-        const detailMessage = responseData?.details?.join?.(', ');
-        throw new Error(responseData.message || detailMessage || 'Failed to create student');
-      }
 
       setIsAddStudentOpen(false);
       console.log('✅ Student created:', responseData);
@@ -37,23 +30,12 @@ const QuickActions = ({ instituteId, departmentId }) => {
 
   const handleCreateExam = async (examData) => {
     try {
-      const response = await fetch('/api/exams', {
+      const responseData = await requestJson('/api/exams', {
         method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          // 'Authorization': `Bearer ${token}`
-        },
         body: JSON.stringify(examData)
       });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to create exam');
-      }
-
-      const exam = await response.json();
       setIsCreateExamOpen(false);
-      console.log('✅ Exam created:', exam);
+      console.log('✅ Exam created:', responseData);
       
     } catch (error) {
       console.error('❌ Error creating exam:', error);

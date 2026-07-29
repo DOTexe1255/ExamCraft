@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { requestJson } from "../global/api";
 
 const InstituteRegisterPage = () => {
   const [formData, setFormData] = useState({
@@ -87,11 +88,8 @@ const InstituteRegisterPage = () => {
     setLoading(true);
     setError("");
     try {
-      const response = await fetch('http://localhost:3000/api/institute', {
+      const data = await requestJson('/api/institute', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
         body: JSON.stringify({
           name: formData.name.trim(),
           code: formData.code.trim(),
@@ -100,13 +98,6 @@ const InstituteRegisterPage = () => {
           phone: formData.phone.trim() || null
         })
       });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        const details = Array.isArray(data?.details) ? data.details.join(', ') : '';
-        throw new Error(data?.message || details || 'Institute registration failed');
-      }
 
       const nextInstituteId = data?.institute_id;
       if (!nextInstituteId) {
@@ -142,11 +133,8 @@ const InstituteRegisterPage = () => {
     setLoading(true);
     setError("");
     try {
-      const response = await fetch('http://localhost:3000/api/auth/institute-admin-register', {
+      await requestJson('/api/auth/institute-admin-register', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
         body: JSON.stringify({
           first_name: adminForm.first_name.trim(),
           last_name: adminForm.last_name.trim(),
@@ -157,13 +145,6 @@ const InstituteRegisterPage = () => {
           phone: adminForm.phone.trim() || null
         })
       });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        const details = Array.isArray(data?.details) ? data.details.join(', ') : '';
-        throw new Error(data?.message || details || 'Admin registration failed');
-      }
 
       showPopup('success', 'Institute admin created successfully', () => navigate('/login'));
     } catch (err) {
