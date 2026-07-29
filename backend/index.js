@@ -20,6 +20,7 @@ connectToMySQL();
 
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/institute', require('./routes/institute'));
+app.use('/api/departments', require('./routes/department'));
 app.use('/api/department', require('./routes/department'));
 app.use('/api/user', require('./routes/userdata'));
 
