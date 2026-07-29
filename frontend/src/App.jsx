@@ -13,6 +13,13 @@ import ExamDashboard from './components/exam/ExamDashboard';
 import ProtectedRoute from './components/ProtectedRoute';
 import { getStoredAuth } from './components/ProtectedRoute';
 
+const getDashboardPath = (role) => {
+  if (role === 'student') return '/student-dashboard';
+  if (role === 'department') return '/department-dashboard';
+  if (role === 'institute') return '/institute-dashboard';
+  return '/';
+};
+
 const App = () => {
   const auth = getStoredAuth();
 
@@ -20,7 +27,7 @@ const App = () => {
     <HashRouter>
       <Routes>
         <Route path="/" element={<Index />} />
-        <Route path="/login" element={auth?.isAuthenticated ? <Navigate to={auth.role === 'student' ? '/student-dashboard' : auth.role === 'department' ? '/department-dashboard' : '/institute-dashboard'} replace /> : <AdministrationLogin />} />
+        <Route path="/login" element={auth?.isAuthenticated ? <Navigate to={getDashboardPath(auth.role)} replace /> : <AdministrationLogin />} />
         <Route path="/student-login" element={auth?.isAuthenticated ? <Navigate to="/student-dashboard" replace /> : <StudentLogin />} />
         <Route path="/register" element={<AdministrationRegister />} />
         <Route path="/student-dashboard" element={<ProtectedRoute allowedRoles={['student']}><StudentDashboard /></ProtectedRoute>} />

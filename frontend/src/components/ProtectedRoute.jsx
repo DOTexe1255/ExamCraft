@@ -24,25 +24,32 @@ export const clearStoredAuth = () => {
   window.localStorage.removeItem(AUTH_STORAGE_KEY);
 };
 
+const getDashboardPath = (role) => {
+  if (role === 'student') return '/student-dashboard';
+  if (role === 'department') return '/department-dashboard';
+  if (role === 'institute') return '/institute-dashboard';
+  return '/';
+};
+
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const location = useLocation();
   const auth = getStoredAuth();
 
   if (!auth?.isAuthenticated) {
+    if (location.pathname === '/login') {
+      return children;
+    }
     return <Navigate to="/login" replace state={{ from: location }} />;
   }
 
   if (allowedRoles && !allowedRoles.includes(auth.role)) {
-    if (auth.role === 'student') {
-      return <Navigate to="/student-dashboard" replace />;
+    const dashboardPath = getDashboardPath(auth.role);
+
+    if (location.pathname === dashboardPath) {
+      return children;
     }
-    if (auth.role === 'institute') {
-      return <Navigate to="/institute-dashboard" replace />;
-    }
-    if (auth.role === 'department') {
-      return <Navigate to="/department-dashboard" replace />;
-    }
-    return <Navigate to="/" replace />;
+
+    return <Navigate to={dashboardPath} replace />;
   }
 
   return children;

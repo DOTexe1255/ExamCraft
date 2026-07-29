@@ -26,12 +26,19 @@ const InstituteDashboard = () => {
           <DepartmentList instituteId={instituteId} />
         </div>
 
+<<<<<<< HEAD
         {/* Right side: quick actions */}
         <aside>
           <QuickActions instituteId={instituteId} />
         </aside>
       </section>
     </main>
+=======
+        {/* Quick Actions */}
+        <QuickActions instituteId={1} />
+      </div>
+    </div>
+>>>>>>> 62d67983018e27e56ef0a6a1786579471eced85e
   );
 };
 
