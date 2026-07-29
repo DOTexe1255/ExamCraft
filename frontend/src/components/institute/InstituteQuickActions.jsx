@@ -1,51 +1,58 @@
 import React, { useState } from 'react';
 import AddDepartmentModal from './AddDepartmentModal';
 
-const InstituteQuickActions = () => {
+const InstituteQuickActions = ({ instituteId = 1 }) => {
   const [isAddDepartmentOpen, setIsAddDepartmentOpen] = useState(false);
 
 const handleAddDepartment = async ({ departmentData, departmentAdminData }) => {
   try {
-    // 1. First create department
-    const departmentResponse = await fetch('/api/departments', {
+    const departmentPayload = {
+      ...departmentData,
+      institute_id: Number(departmentData.institute_id || 1)
+    };
+
+    const departmentResponse = await fetch('http://localhost:3000/api/department', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(departmentData)
+      body: JSON.stringify(departmentPayload)
     });
 
+    const departmentResponseData = await departmentResponse.json().catch(() => ({}));
+
     if (!departmentResponse.ok) {
-      throw new Error('Failed to create department');
+      const detailMessage = departmentResponseData?.details?.join?.(', ');
+      throw new Error(departmentResponseData.message || detailMessage || 'Failed to create department');
     }
 
-    const department = await departmentResponse.json();
-    const departmentId = department.id;
+    const department = departmentResponseData;
+    const departmentId = department.department_id;
 
-    // 2. Then create department admin (if head details provided)
     if (departmentAdminData) {
       const adminData = {
         ...departmentAdminData,
+        institute_id: Number(departmentData.institute_id || 1),
         department_id: departmentId
       };
 
-      const adminResponse = await fetch('/api/auth/register', {
+      const adminResponse = await fetch('http://localhost:3000/api/auth/department-admin-register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(adminData)
       });
 
+      const adminResponseData = await adminResponse.json().catch(() => ({}));
+
       if (!adminResponse.ok) {
-        console.error('Admin creation failed, but department was created:', await adminResponse.json());
+        const detailMessage = adminResponseData?.details?.join?.(', ');
+        throw new Error(adminResponseData.message || detailMessage || 'Department created, but admin creation failed');
       }
     }
 
+    setIsAddDepartmentOpen(false);
     console.log('Department created successfully:', department);
-    // Show success notification, refresh data, etc.
-    
   } catch (error) {
     console.error('Error creating department:', error);
-    // Show error notification
-  } finally {
-    setIsAddDepartmentOpen(false);
+    throw error;
   }
 };
 
@@ -127,6 +134,7 @@ const handleAddDepartment = async ({ departmentData, departmentAdminData }) => {
         isOpen={isAddDepartmentOpen}
         onClose={() => setIsAddDepartmentOpen(false)}
         onSubmit={handleAddDepartment}
+        instituteId={instituteId}
       />
     </>
   );

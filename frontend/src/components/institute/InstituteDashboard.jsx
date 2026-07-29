@@ -19,7 +19,7 @@ const InstituteDashboard = () => {
         <DepartmentList />
 
         {/* Quick Actions */}
-        <QuickActions />
+        <QuickActions instituteId={1} />
       </div>
     </div>
   );
