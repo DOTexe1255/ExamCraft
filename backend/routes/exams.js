@@ -145,4 +145,20 @@ router.post('/', authMiddleware, async (req, res) => {
   }
 });
 
+router.get('/:examId/report', authMiddleware, async (req, res) => {
+  let conn;
+  try {
+    conn = await connectToMySQL();
+    const [examRows] = await conn.execute('SELECT exam_id, department_id, title, status FROM exams WHERE exam_id = ? AND institute_id = ?', [Number(req.params.examId), req.user.institute_id]);
+    const exam = examRows[0];
+    if (!exam || (req.user.role === 'department' && Number(exam.department_id) !== Number(req.user.department_id))) return res.status(404).json({ message: 'Exam not found' });
+    if (exam.status !== 'completed') return res.status(409).json({ message: 'Exam report is available after the exam is completed' });
+    const [rows] = await conn.execute(`SELECT u.first_name, u.last_name, u.email, ea.started_at, ea.completed_at, ea.total_score, ea.total_marks, ea.is_submitted FROM exam_assignments ass JOIN users u ON u.user_id = ass.student_id LEFT JOIN exam_attempts ea ON ea.assignment_id = ass.assignment_id WHERE ass.exam_id = ? ORDER BY u.first_name, u.last_name`, [exam.exam_id]);
+    const quote = (value) => `"${String(value ?? '').replace(/"/g, '""')}"`;
+    const csv = ['Student name,Email,Started at,Completed at,Score,Total marks,Submitted', ...rows.map((row) => [`${row.first_name} ${row.last_name}`, row.email, row.started_at, row.completed_at, row.total_score, row.total_marks, row.is_submitted ? 'Yes' : 'No'].map(quote).join(','))].join('\n');
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8'); res.setHeader('Content-Disposition', `attachment; filename="exam-${exam.exam_id}-report.csv"`); return res.send(csv);
+  } catch (error) { return res.status(500).json({ message: 'Could not create exam report', error: error.message }); }
+  finally { if (conn) conn.release(); }
+});
+
 module.exports = router;
