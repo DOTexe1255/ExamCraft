@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { clearStoredAuth } from '../ProtectedRoute';
-import { useMyContext } from '../../global/MyContext';
+import { clearStoredAuth } from '../../global/authStorage';
+import { useMyContext } from '../../global/AuthContext';
 
 const Header = () => {
   const navigate = useNavigate();

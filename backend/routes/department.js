@@ -2,10 +2,14 @@ const express = require('express');
 const connectToMySQL = require('../db');
 const router = express.Router();
 const departmentregisterschema = require('../models/departmentregisterSchema');
+const authMiddleware = require('./authMiddleware');
 
 // POST /api/department
 // Purpose: Create a department under an existing institute.
-router.post('/', async (req, res) => {
+router.post('/', authMiddleware, async (req, res) => {
+  if (req.user.role !== 'institute') {
+    return res.status(403).json({ message: 'Only institute administrators can create departments' });
+  }
   // Validate incoming request body using Joi schema
   const { error, value } = departmentregisterschema.validate(req.body, {
     abortEarly: false,
@@ -20,6 +24,10 @@ router.post('/', async (req, res) => {
 
   // Use validated data instead of req.body
   const { institute_id, name, code, head_email } = value;
+
+  if (Number(institute_id) !== Number(req.user.institute_id)) {
+    return res.status(403).json({ message: 'You can only create departments in your own institute' });
+  }
 
   let conn;
   try {
@@ -53,6 +61,11 @@ router.post('/', async (req, res) => {
       `INSERT INTO departments (institute_id, name, code, head_email)
        VALUES (?, ?, ?, ?)`,
       [institute_id, name, code, head_email || null]
+    );
+
+    await conn.execute(
+      'INSERT INTO audit_logs (user_id, action, table_name, record_id, new_values) VALUES (?, ?, ?, ?, ?)',
+      [req.user.user_id, 'DEPARTMENT_CREATED', 'departments', result.insertId, JSON.stringify({ name, code })]
     );
 
     return res.status(201).json({

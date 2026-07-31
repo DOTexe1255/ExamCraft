@@ -1,124 +1,20 @@
 import React, { useState } from 'react';
-import AddDepartmentModal from './AddDepartmentModal';
-import { requestJson } from '../../global/api';
+import { buildApiUrl } from '../../global/api';
 
-const InstituteQuickActions = ({ instituteId = 1 }) => {
-  const [isAddDepartmentOpen, setIsAddDepartmentOpen] = useState(false);
-
-const handleAddDepartment = async ({ departmentData, departmentAdminData }) => {
-  try {
-    // 1. First create department
-    const department = await requestJson('/api/departments', {
-      method: 'POST',
-      body: JSON.stringify(departmentData)
-    });
-    const departmentId = department.department_id;
-
-    if (departmentAdminData) {
-      const adminData = {
-        ...departmentAdminData,
-        institute_id: Number(departmentData.institute_id || 1),
-        department_id: departmentId
-      };
-
-      const adminResponse = await requestJson('/api/auth/department-admin-register', {
-        method: 'POST',
-        body: JSON.stringify(adminData)
-      });
-
-      console.log('✅ Department admin created:', adminResponse);
-    }
-
-    setIsAddDepartmentOpen(false);
-    console.log('Department created successfully:', department);
-  } catch (error) {
-    console.error('Error creating department:', error);
-    throw error;
-  }
+const formatAction = (action) => String(action || 'Activity').replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
+const dateLabel = (value) => value ? new Intl.DateTimeFormat('en-IN', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value)) : 'Just now';
+const InstituteQuickActions = ({ activity, settings, loading }) => {
+  const [downloading, setDownloading] = useState(false);
+  const downloadReport = async () => {
+    setDownloading(true);
+    try { const response = await fetch(buildApiUrl('/api/institute/dashboard/report'), { credentials: 'include' }); if (!response.ok) throw new Error('Report could not be generated'); const url = URL.createObjectURL(await response.blob()); const link = document.createElement('a'); link.href = url; link.download = 'institute-report.csv'; link.click(); URL.revokeObjectURL(url); }
+    catch (error) { alert(error.message || 'Could not download report'); }
+    finally { setDownloading(false); }
+  };
+  const storageUsed = settings.storage_used || 'Not configured';
+  return <><section className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm"><h2 className="text-base font-semibold text-slate-900">Quick actions</h2><p className="mt-1 text-sm text-slate-500">Export current institute data.</p><div className="mt-5"><button onClick={downloadReport} disabled={downloading} className="flex w-full items-center gap-3 rounded-xl bg-indigo-600 px-4 py-3 text-left text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 disabled:cursor-wait disabled:opacity-60"><span className="grid h-7 w-7 place-items-center rounded-lg bg-white/15"><svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 16v-8m0 8l-3-3m3 3l3-3M5 20h14" /></svg></span>{downloading ? 'Preparing report…' : 'Download institute report'}</button></div></section>
+    <section className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm"><div className="flex items-center justify-between"><div><h2 className="text-base font-semibold text-slate-900">Recent activity</h2><p className="mt-1 text-sm text-slate-500">Your institute audit trail.</p></div></div><div className="mt-5 space-y-5">{loading ? <p className="text-sm text-slate-500">Loading activity…</p> : activity.length ? activity.map((item) => <Activity key={item.log_id} title={formatAction(item.action)} detail={`${item.actor || 'System'} · ${dateLabel(item.created_at)}`} />) : <p className="text-sm leading-6 text-slate-500">No audit activity recorded yet. New administration actions will appear here.</p>}</div></section>
+    <section className="rounded-2xl border border-indigo-100 bg-indigo-50/70 p-5"><div className="flex items-start gap-3"><div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-indigo-600 text-white"><svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg></div><div><p className="text-sm font-semibold text-indigo-950">Institute settings</p><p className="mt-1 text-xs leading-5 text-indigo-800">Maximum exam duration: {settings.max_exam_duration ? `${settings.max_exam_duration} minutes` : 'Not configured'}</p><p className="text-xs leading-5 text-indigo-800">Storage usage: {storageUsed}</p></div></div></section></>;
 };
-
-
-  return (
-    <>
-      {/* Quick Actions */}
-      <div className="space-y-6">
-        <div className="bg-white rounded-xl shadow-dashboard hover:shadow-dashboard-hover border hover:border-institute-200">
-          <div className="px-6 py-4 border-b border-gray-100">
-            <h3 className="text-lg font-semibold text-gray-900">Quick Actions</h3>
-          </div>
-          <div className="p-6 space-y-3">
-            <button 
-              onClick={() => setIsAddDepartmentOpen(true)}
-              className="w-full px-4 py-3 bg-institute-600 text-white rounded-xl text-sm font-semibold 
-                        hover:bg-institute-700 shadow-dashboard hover:shadow-dashboard-hover 
-                        flex items-center gap-2 transition-all duration-300 justify-start"
-            >
-              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              Add New Department
-            </button>
-            {/* Rest of your buttons remain the same */}
-            {/* <button className="w-full px-4 py-3 bg-student-600 text-white rounded-xl text-sm font-semibold 
-                            hover:bg-student-700 shadow-dashboard hover:shadow-dashboard-hover 
-                            flex items-center gap-2 transition-all duration-300 justify-start">
-              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-              </svg>
-              Add Users in Bulk
-            </button> */}
-            <button className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-sm font-medium 
-                            text-gray-700 hover:bg-gray-50 hover:border-institute-300 
-                            hover:shadow-dashboard flex items-center gap-2 transition-all duration-200 justify-start">
-              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-              Institute Reports
-            </button>
-            <button className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-sm font-medium 
-                            text-gray-700 hover:bg-gray-50 hover:border-institute-300 
-                            hover:shadow-dashboard flex items-center gap-2 transition-all duration-200 justify-start">
-              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-              Audit Logs
-            </button>
-          </div>
-        </div>
-
-        {/* Institute Settings - unchanged */}
-        <div className="bg-white rounded-xl shadow-dashboard hover:shadow-dashboard-hover border hover:border-institute-200">
-          <div className="px-6 py-4 border-b border-gray-100">
-            <h3 className="text-lg font-semibold text-gray-900">Institute Settings</h3>
-            <p className="text-sm text-gray-600">Current configuration</p>
-          </div>
-          <div className="p-6 space-y-4">
-            <div className="flex justify-between items-center py-3 border-b border-gray-100 last:border-b-0">
-              <span className="text-sm text-gray-600">Max Exam Duration</span>
-              <span className="font-semibold text-institute-600">120 min</span>
-            </div>
-            <div className="flex justify-between items-center py-3 border-b border-gray-100 last:border-b-0">
-              <span className="text-sm text-gray-600">SEB Quit Password</span>
-              <span className="font-semibold text-status-active">exam123</span>
-            </div>
-            <div className="flex justify-between items-center py-3">
-              <span className="text-sm text-gray-600">Total Storage Used</span>
-              <span className="font-semibold text-status-scheduled">2.4 GB / 50 GB</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Add Department Modal */}
-      <AddDepartmentModal
-        isOpen={isAddDepartmentOpen}
-        onClose={() => setIsAddDepartmentOpen(false)}
-        onSubmit={handleAddDepartment}
-        instituteId={instituteId}
-      />
-    </>
-  );
-};
-
+const Activity = ({ title, detail }) => <div className="flex gap-3"><span className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full bg-indigo-500 ring-4 ring-slate-50" /><div><p className="text-sm font-medium text-slate-700">{title}</p><p className="mt-1 text-xs text-slate-500">{detail}</p></div></div>;
 export default InstituteQuickActions;

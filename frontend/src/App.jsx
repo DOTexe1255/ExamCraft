@@ -11,7 +11,7 @@ import StudentLogin from "./components/StudentLogin";
 import InstituteDashboard from "./components/institute/InstituteDashboard";
 import ExamDashboard from './components/exam/ExamDashboard';
 import ProtectedRoute from './components/ProtectedRoute';
-import { getStoredAuth } from './components/ProtectedRoute';
+import { getStoredAuth } from './global/authStorage';
 
 const getDashboardPath = (role) => {
   if (role === 'student') return '/student-dashboard';

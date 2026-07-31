@@ -1,53 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { clearStoredAuth } from '../ProtectedRoute';
-import { useMyContext } from '../../global/MyContext';
-
-const Header = () => {
-  const navigate = useNavigate();
-  const authContext = useMyContext();
-  const auth = authContext?.auth || null;
-  const displayName = [auth?.firstName || auth?.user?.first_name, auth?.lastName || auth?.user?.last_name]
-    .filter(Boolean)
-    .join(' ') || 'Department Admin';
-  const departmentLabel = auth?.departmentId || auth?.user?.department_id
-    ? `Department #${auth.departmentId || auth?.user?.department_id}`
-    : 'Department Admin Access';
-
-  const handleLogout = () => {
-    authContext?.clearAuth?.();
-    clearStoredAuth();
-    localStorage.removeItem('teacherToken');
-    localStorage.removeItem('teacherId');
-    localStorage.removeItem('departmentRole');
-    navigate('/login', { replace: true });
-  };
-
-  return (
-    <>
-      {/* Header */}
-      <div className="flex justify-between items-center mb-8">
-        <div>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-teacher-600 to-teacher-700 bg-clip-text text-transparent">
-            Department Dashboard
-          </h1>
-          <p className="text-gray-600 mt-1">Welcome back, {displayName}</p>
-          <p className="text-sm text-teacher-600 font-medium mt-1">{departmentLabel}</p>
-        </div>
-        <button 
-          onClick={handleLogout}
-          className="px-4 py-2 border-2 border-gray-200 rounded-xl text-sm font-semibold 
-                    text-gray-700 hover:bg-gray-50 hover:border-teacher-300 
-                    hover:shadow-dashboard flex items-center gap-2 transition-all duration-200"
-        >
-          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-          </svg>
-          Logout
-        </button>
-      </div>
-    </>
-  );
-};
-
+import { clearStoredAuth } from '../../global/authStorage';
+import { useMyContext } from '../../global/AuthContext';
+const Header = () => { const navigate = useNavigate(); const { auth, clearAuth } = useMyContext() || {}; const name = [auth?.firstName || auth?.user?.first_name, auth?.lastName || auth?.user?.last_name].filter(Boolean).join(' ') || 'Department Admin'; const department = auth?.departmentId || auth?.user?.department_id; const logout = () => { clearAuth?.(); clearStoredAuth(); navigate('/login', { replace: true }); }; return <header className="overflow-hidden rounded-3xl bg-gradient-to-br from-slate-950 via-cyan-950 to-sky-900 shadow-[0_22px_55px_-24px_rgba(8,145,178,.7)]"><div className="relative px-5 py-6 sm:px-8 sm:py-8"><div className="absolute -right-16 -top-20 h-60 w-60 rounded-full bg-cyan-300/15 blur-3xl" /><div className="relative flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between"><div className="flex gap-4"><span className="grid h-12 w-12 place-items-center rounded-2xl bg-white/10 ring-1 ring-white/15"><svg className="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="M4 19V5a2 2 0 012-2h12a2 2 0 012 2v14M8 7h8M8 11h8M8 15h5" /></svg></span><div><p className="text-xs font-medium text-cyan-200">DEPARTMENT {department ? `· ID ${department}` : 'WORKSPACE'}</p><h1 className="mt-2 text-2xl font-semibold tracking-tight text-white sm:text-3xl">Welcome back, {name}</h1><p className="mt-2 text-sm text-cyan-100/80">Manage examinations, student access and academic progress.</p></div></div><button onClick={logout} className="inline-flex w-fit items-center gap-2 rounded-xl border border-white/15 bg-white/10 px-4 py-2.5 text-sm font-medium text-white hover:bg-white/20"><span>Sign out</span><span>→</span></button></div></div></header>; };
 export default Header;

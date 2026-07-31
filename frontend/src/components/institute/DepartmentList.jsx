@@ -2,145 +2,24 @@ import React, { useState } from 'react';
 import AddDepartmentModal from './AddDepartmentModal';
 import { requestJson } from '../../global/api';
 
-const DepartmentList = ({ instituteId }) => {
+const palette = ['bg-indigo-600', 'bg-sky-600', 'bg-violet-600', 'bg-amber-500', 'bg-emerald-600'];
+const DepartmentList = ({ instituteId, departments, loading, onChange }) => {
   const [isAddDepartmentOpen, setIsAddDepartmentOpen] = useState(false);
-
+  const [selected, setSelected] = useState(null);
+  const [showAll, setShowAll] = useState(false);
   const handleAddDepartment = async ({ departmentData, departmentAdminData }) => {
-    try {
-      // 1. Create department first
-      const department = await requestJson('/api/departments', {
-        method: 'POST',
-        body: JSON.stringify(departmentData)
-      });
-      const departmentId = department.department_id;
-
-      // 2. Create department admin if head details provided
-      if (departmentAdminData) {
-        const adminData = {
-          ...departmentAdminData,
-          department_id: departmentId
-        };
-
-        const adminResponse = await requestJson('/api/auth/department-admin-register', {
-          method: 'POST',
-          body: JSON.stringify(adminData)
-        });
-
-        console.log('✅ Department admin created:', adminResponse);
-      }
-
-      // Success
-      setIsAddDepartmentOpen(false);
-      console.log('✅ Department created:', department);
-      
-      // TODO: Refresh departments list, show success toast
-      window.location.reload(); // Quick refresh for demo
-      
-    } catch (error) {
-      console.error('❌ Error creating department:', error);
-      alert(error.message || 'Failed to create department');
-    }
+    const department = await requestJson('/api/departments', { method: 'POST', body: JSON.stringify(departmentData) });
+    if (departmentAdminData) await requestJson('/api/auth/department-admin-register', { method: 'POST', body: JSON.stringify({ ...departmentAdminData, department_id: department.department_id }) });
+    setIsAddDepartmentOpen(false); await onChange();
   };
-
-  return (
-    <>
-      {/* Departments & Exams List */}
-      <div className="lg:col-span-2">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-xl font-semibold text-gray-900">Departments Overview</h2>
-          <button 
-            onClick={() => setIsAddDepartmentOpen(true)}
-            className="px-4 py-2 bg-institute-600 text-white rounded-xl text-sm font-semibold 
-                      hover:bg-institute-700 shadow-dashboard hover:shadow-dashboard-hover 
-                      flex items-center gap-2 transition-all duration-300"
-          >
-            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            Add Department
-          </button>
-        </div>
-
-        <div className="space-y-4">
-          {/* Computer Science Department */}
-          <div className="bg-white rounded-xl shadow-dashboard hover:shadow-dashboard-hover 
-                          border hover:border-institute-200 p-6 transition-all duration-300">
-            <div className="flex justify-between items-start mb-4">
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900">Computer Science (CS)</h3>
-                <p className="text-gray-600 mt-1">CS Head: CS Head</p>
-                <div className="flex items-center gap-4 mt-2 text-sm text-gray-500">
-                  <span>12 Faculty</span>
-                  <span className="text-student-600 font-medium">450 Students</span>
-                  <span className="text-status-active font-medium">8 Active Exams</span>
-                </div>
-              </div>
-              <span className="px-3 py-1 bg-status-active/10 text-status-active text-xs font-medium rounded-full">
-                Active
-              </span>
-            </div>
-            <div className="flex gap-2">
-              <button className="px-3 py-1 border-2 border-gray-200 rounded-lg text-xs font-medium 
-                                text-gray-700 hover:bg-gray-50 hover:border-institute-300 
-                                flex items-center gap-1 transition-all duration-200">
-                <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                </svg>
-                View Details
-              </button>
-              <button className="px-3 py-1 bg-status-completed text-white rounded-lg text-xs font-medium 
-                                hover:bg-status-completed/90 shadow-dashboard 
-                                flex items-center gap-1 transition-all duration-200">
-                <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                Exam Analytics
-              </button>
-            </div>
-          </div>
-
-          {/* Electronics Department */}
-          <div className="bg-white rounded-xl shadow-dashboard hover:shadow-dashboard-hover 
-                          border hover:border-institute-200 p-6 transition-all duration-300">
-            <div className="flex justify-between items-start mb-4">
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900">Electronics (ECE)</h3>
-                <p className="text-gray-600 mt-1">ECE Head: ECE Head</p>
-                <div className="flex items-center gap-4 mt-2 text-sm text-gray-500">
-                  <span>8 Faculty</span>
-                  <span className="text-student-600 font-medium">320 Students</span>
-                  <span className="text-status-active font-medium">3 Active Exams</span>
-                </div>
-              </div>
-              <span className="px-3 py-1 bg-status-active/10 text-status-active text-xs font-medium rounded-full">
-                Active
-              </span>
-            </div>
-            <div className="flex gap-2">
-              <button className="px-3 py-1 border-2 border-gray-200 rounded-lg text-xs font-medium 
-                                text-gray-700 hover:bg-gray-50 hover:border-institute-300 
-                                flex items-center gap-1 transition-all duration-200">
-                <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                </svg>
-                View Details
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Using your existing AddDepartmentModal */}
-      <AddDepartmentModal
-        isOpen={isAddDepartmentOpen}
-        onClose={() => setIsAddDepartmentOpen(false)}
-        onSubmit={handleAddDepartment}
-        instituteId={instituteId}
-      />
-    </>
-  );
+  const visibleDepartments = showAll ? departments : departments.slice(0, 5);
+  return <section aria-labelledby="departments-heading" className="rounded-2xl border border-slate-200/80 bg-white shadow-sm"><div className="flex flex-col gap-4 border-b border-slate-100 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6"><div><div className="flex items-center gap-2"><h2 id="departments-heading" className="text-lg font-semibold text-slate-900">Departments</h2><span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">{departments.length} total</span></div><p className="mt-1 text-sm text-slate-500">Monitor academic performance across your institute.</p></div><button onClick={() => setIsAddDepartmentOpen(true)} className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700"><span className="text-lg leading-none">+</span>Add department</button></div>
+    <div className="overflow-x-auto"><table className="w-full min-w-[720px] text-left"><thead className="bg-slate-50/80 text-xs font-semibold uppercase tracking-wider text-slate-500"><tr><th className="px-6 py-3.5">Department</th><th className="px-4 py-3.5">Head of department</th><th className="px-4 py-3.5">People</th><th className="px-4 py-3.5">Assessments</th><th className="px-6 py-3.5 text-right">Action</th></tr></thead><tbody className="divide-y divide-slate-100">{loading ? <tr><td colSpan="5" className="px-6 py-12 text-center text-sm text-slate-500">Loading departments…</td></tr> : visibleDepartments.length === 0 ? <tr><td colSpan="5" className="px-6 py-12 text-center"><p className="font-medium text-slate-700">No departments yet</p><p className="mt-1 text-sm text-slate-500">Create your first department to get started.</p></td></tr> : visibleDepartments.map((dept, index) => <tr key={dept.department_id} className="transition hover:bg-slate-50/80"><td className="px-6 py-5"><div className="flex items-center gap-3"><div className={`grid h-10 w-10 place-items-center rounded-xl ${palette[index % palette.length]} text-xs font-bold text-white`}>{dept.code?.slice(0, 2)}</div><div><p className="font-semibold text-slate-800">{dept.name}</p><p className="mt-0.5 text-xs font-medium text-slate-500">{dept.code} · <span className="text-emerald-600">Active</span></p></div></div></td><td className="px-4 py-5"><p className="text-sm font-medium text-slate-700">{dept.head_name?.trim() || 'Not assigned'}</p><p className="mt-0.5 text-xs text-slate-500">{dept.head_email || 'No email available'}</p></td><td className="px-4 py-5"><p className="text-sm font-semibold text-slate-700">{dept.student_count} <span className="font-normal text-slate-400">students</span></p><p className="mt-0.5 text-xs text-slate-500">{dept.faculty_count} faculty members</p></td><td className="px-4 py-5"><p className="text-sm font-semibold text-slate-700">{dept.active_exam_count} <span className="font-normal text-slate-400">active</span></p><p className="mt-0.5 text-xs text-slate-500">{dept.exam_count} total exams</p></td><td className="px-6 py-5 text-right"><button onClick={() => setSelected(dept)} className="rounded-lg px-3 py-2 text-sm font-semibold text-indigo-600 transition hover:bg-indigo-50">View details →</button></td></tr>)}</tbody></table></div>
+    {departments.length > 5 && <div className="flex items-center justify-between border-t border-slate-100 px-6 py-4 text-sm"><span className="text-slate-500">Showing {visibleDepartments.length} of {departments.length} departments</span><button onClick={() => setShowAll(!showAll)} className="font-semibold text-indigo-600 hover:text-indigo-800">{showAll ? 'Show less' : 'View all departments'}</button></div>}
+    <AddDepartmentModal isOpen={isAddDepartmentOpen} onClose={() => setIsAddDepartmentOpen(false)} onSubmit={handleAddDepartment} instituteId={instituteId} />
+    {selected && <DepartmentDetails department={selected} onClose={() => setSelected(null)} />}
+  </section>;
 };
-
+const DepartmentDetails = ({ department, onClose }) => <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4" onClick={onClose}><div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl" onClick={(event) => event.stopPropagation()}><div className="flex items-start justify-between"><div><p className="text-xs font-semibold uppercase tracking-widest text-indigo-600">{department.code}</p><h3 className="mt-1 text-xl font-semibold text-slate-900">{department.name}</h3></div><button onClick={onClose} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100">✕</button></div><dl className="mt-6 space-y-4 text-sm"><Detail label="Head of department" value={department.head_name?.trim() || 'Not assigned'} /><Detail label="Contact email" value={department.head_email || 'Not available'} /><Detail label="Active students" value={department.student_count} /><Detail label="Faculty members" value={department.faculty_count} /><Detail label="Active examinations" value={department.active_exam_count} /></dl><button onClick={onClose} className="mt-6 w-full rounded-xl bg-slate-900 py-2.5 text-sm font-semibold text-white">Close</button></div></div>;
+const Detail = ({ label, value }) => <div className="flex items-center justify-between border-b border-slate-100 pb-3"><dt className="text-slate-500">{label}</dt><dd className="font-semibold text-slate-800">{value}</dd></div>;
 export default DepartmentList;

@@ -14,6 +14,7 @@ const AddDepartmentModal = ({ isOpen, onClose, onSubmit, instituteId }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
 
   // Reset form when modal opens
   useEffect(() => {
@@ -28,6 +29,7 @@ const AddDepartmentModal = ({ isOpen, onClose, onSubmit, instituteId }) => {
         head_password: ''
       });
       setErrors({});
+      setSubmitError('');
       setShowPassword(false);
     }
   }, [isOpen]);
@@ -71,6 +73,7 @@ const AddDepartmentModal = ({ isOpen, onClose, onSubmit, instituteId }) => {
     if (errors[name]) {
       setErrors((current) => ({ ...current, [name]: '' }));
     }
+    if (submitError) setSubmitError('');
   };
 
   const handleSubmit = async (e) => {
@@ -104,6 +107,7 @@ const AddDepartmentModal = ({ isOpen, onClose, onSubmit, instituteId }) => {
       await onSubmit({ departmentData, departmentAdminData });
     } catch (error) {
       console.error('Submission error:', error);
+      setSubmitError(error.message || 'Unable to create the department. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -309,6 +313,7 @@ const AddDepartmentModal = ({ isOpen, onClose, onSubmit, instituteId }) => {
             </div>
           </div>
 
+          {submitError && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{submitError}</div>}
           <div className="flex gap-3 pt-6 border-t border-gray-100">
             <button
               type="button"

@@ -1,28 +1,13 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
-
-const AUTH_STORAGE_KEY = 'examcraft-auth';
-
-const readStoredAuth = () => {
-  if (typeof window === 'undefined') {
-    return null;
-  }
-
-  try {
-    const stored = window.localStorage.getItem(AUTH_STORAGE_KEY);
-    return stored ? JSON.parse(stored) : null;
-  } catch {
-    return null;
-  }
-};
-
-const MyContext = createContext(null);
+import React, { useEffect, useMemo, useState } from 'react';
+import { AuthContext } from './AuthContext';
+import { clearStoredAuth, getStoredAuth, setStoredAuth } from './authStorage';
 
 export const MyProvider = ({ children }) => {
-  const [auth, setAuthState] = useState(readStoredAuth);
+  const [auth, setAuthState] = useState(getStoredAuth);
 
   useEffect(() => {
     const handleStorageChange = () => {
-      setAuthState(readStoredAuth());
+      setAuthState(getStoredAuth());
     };
 
     window.addEventListener('storage', handleStorageChange);
@@ -33,7 +18,7 @@ export const MyProvider = ({ children }) => {
     setAuthState(nextAuth);
 
     if (typeof window !== 'undefined') {
-      window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(nextAuth));
+      setStoredAuth(nextAuth);
     }
   };
 
@@ -41,7 +26,7 @@ export const MyProvider = ({ children }) => {
     setAuthState(null);
 
     if (typeof window !== 'undefined') {
-      window.localStorage.removeItem(AUTH_STORAGE_KEY);
+      clearStoredAuth();
     }
   };
 
@@ -52,10 +37,8 @@ export const MyProvider = ({ children }) => {
   }), [auth]);
 
   return (
-    <MyContext.Provider value={value}>
+    <AuthContext.Provider value={value}>
       {children}
-    </MyContext.Provider>
+    </AuthContext.Provider>
   );
 };
-
-export const useMyContext = () => useContext(MyContext);
