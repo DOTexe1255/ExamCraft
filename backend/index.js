@@ -26,6 +26,7 @@ app.use('/api/department', require('./routes/department'));
 app.use('/api/department/dashboard', require('./routes/departmentDashboard'));
 app.use('/api/exams', require('./routes/exams'));
 app.use('/api/user', require('./routes/userdata'));
+app.use('/api/student/dashboard', require('./routes/studentDashboard'));
 
 app.listen(port, () => {
   console.log(`Express server listening at http://localhost:${port}`);

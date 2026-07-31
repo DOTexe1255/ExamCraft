@@ -1,24 +1,3 @@
-import React from 'react'
-import RecentActivity from './RecentActivity'
-import ExamTip from './ExamTip'
-
-const Sidebar = () => {
-  return (
-    <>
-         {/* Sidebar */}
-          <div className="space-y-6">
-            {/* Recent Activity */}
-           <RecentActivity />
-
-            {/* Exam Tips */}
-            <ExamTip />
-
-            {/* Question Types Info */}
-            <ExamTip />
-            
-          </div>
-    </>
-  )
-}
-
-export default Sidebar
+import React from 'react';
+const Sidebar = ({ exams, loading }) => { const next = exams.filter((exam) => !exam.is_submitted && ['active', 'scheduled'].includes(exam.status)).sort((a, b) => new Date(a.start_datetime) - new Date(b.start_datetime))[0]; return <div className="space-y-7"><section className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm"><h2 className="text-base font-semibold text-slate-900">Next assessment</h2>{loading ? <p className="mt-4 text-sm text-slate-500">Loading…</p> : next ? <div className="mt-4 rounded-xl bg-emerald-50 p-4"><p className="font-semibold text-emerald-950">{next.title}</p><p className="mt-2 text-sm text-emerald-800">{new Intl.DateTimeFormat('en-IN', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(next.start_datetime))}</p><p className="mt-1 text-xs text-emerald-700">Duration: {next.duration_minutes} minutes</p></div> : <p className="mt-4 text-sm leading-6 text-slate-500">You have no upcoming assessments.</p>}</section><section className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm"><h2 className="text-base font-semibold text-slate-900">Before you begin</h2><ul className="mt-4 space-y-3 text-sm leading-6 text-slate-600"><li className="flex gap-2"><span className="font-bold text-emerald-600">✓</span>Use a stable internet connection.</li><li className="flex gap-2"><span className="font-bold text-emerald-600">✓</span>Keep your student credentials private.</li><li className="flex gap-2"><span className="font-bold text-emerald-600">✓</span>Review exam instructions before starting.</li></ul></section><section className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-5"><p className="text-sm font-semibold text-emerald-950">Need assistance?</p><p className="mt-1 text-sm leading-6 text-emerald-800">Contact your department administrator for access or schedule-related questions.</p></section></div>; };
+export default Sidebar;

@@ -2,50 +2,5 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { clearStoredAuth } from '../../global/authStorage';
 import { useMyContext } from '../../global/AuthContext';
-
-const Header = () => {
-  const navigate = useNavigate();
-  const authContext = useMyContext();
-  const auth = authContext?.auth || null;
-  const displayName = [auth?.firstName || auth?.user?.first_name, auth?.lastName || auth?.user?.last_name]
-    .filter(Boolean)
-    .join(' ') || 'Student';
-  const studentLabel = auth?.userId || auth?.user?.id ? `Student #${auth.userId || auth?.user?.id}` : 'Student Portal';
-
-  const handleLogout = () => {
-    authContext?.clearAuth?.();
-    clearStoredAuth();
-    localStorage.removeItem('studentToken');
-    localStorage.removeItem('studentId');
-    localStorage.removeItem('studentRole');
-    navigate('/student-login', { replace: true });
-  };
-
-  return (
-    <>
-      {/* Header */}
-      <div className="flex justify-between items-center mb-8">
-        <div>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-student-600 to-student-700 bg-clip-text text-transparent">
-            Student Dashboard
-          </h1>
-          <p className="text-gray-600 mt-1">Welcome back, {displayName}</p>
-          <p className="text-sm text-student-600 font-medium mt-1">{studentLabel}</p>
-        </div>
-        <button 
-          onClick={handleLogout}
-          className="px-4 py-2 border-2 border-gray-200 rounded-xl text-sm font-semibold 
-                    text-gray-700 hover:bg-gray-50 hover:border-student-300 
-                    hover:shadow-dashboard flex items-center gap-2 transition-all duration-200"
-        >
-          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-          </svg>
-          Logout
-        </button>
-      </div>
-    </>
-  );
-};
-
+const Header = () => { const navigate = useNavigate(); const { auth, clearAuth } = useMyContext() || {}; const name = [auth?.firstName || auth?.user?.first_name, auth?.lastName || auth?.user?.last_name].filter(Boolean).join(' ') || 'Student'; const signOut = () => { clearAuth?.(); clearStoredAuth(); navigate('/student-login', { replace: true }); }; return <header className="overflow-hidden rounded-3xl bg-gradient-to-br from-slate-950 via-emerald-950 to-teal-900 shadow-[0_22px_55px_-24px_rgba(5,150,105,.7)]"><div className="relative px-5 py-6 sm:px-8 sm:py-8"><div className="absolute -right-16 -top-20 h-60 w-60 rounded-full bg-emerald-300/15 blur-3xl" /><div className="relative flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between"><div className="flex gap-4"><span className="grid h-12 w-12 place-items-center rounded-2xl bg-white/10 ring-1 ring-white/15"><svg className="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="M12 14l9-5-9-5-9 5 9 5zm0 0v7" /></svg></span><div><p className="text-xs font-medium text-emerald-200">STUDENT WORKSPACE</p><h1 className="mt-2 text-2xl font-semibold tracking-tight text-white sm:text-3xl">Hello, {name}</h1><p className="mt-2 text-sm text-emerald-100/80">Review your assigned assessments and stay ready.</p></div></div><button onClick={signOut} className="inline-flex w-fit items-center gap-2 rounded-xl border border-white/15 bg-white/10 px-4 py-2.5 text-sm font-medium text-white hover:bg-white/20">Sign out <span>→</span></button></div></div></header>; };
 export default Header;

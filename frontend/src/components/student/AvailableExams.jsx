@@ -1,107 +1,11 @@
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-const AvailableExams = () => {
-  const navigate = useNavigate();
-
-  const handleStartExam = (examId) => {
-    // HashRouter navigation: #/exam/exam-1
-    navigate(`/exam/${examId}`);
-  };
-
-  return (
-    <>
-      {/* Available Exams */}
-      <div className="lg:col-span-2">
-        <h2 className="text-xl font-semibold text-gray-900 mb-6">Available Exams</h2>
-        
-        <div className="space-y-4">
-          {/* Exam Card 1 - Available */}
-          <div className="bg-white rounded-xl shadow-dashboard hover:shadow-dashboard-hover 
-                          border hover:border-student-200 p-6 transition-all duration-300 
-                          group hover:scale-[1.02]">
-            <div className="flex justify-between items-start mb-4">
-              <div className="flex-1">
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-lg font-semibold text-gray-900">Data Structures & Algorithms</h3>
-                  <span className="px-3 py-1 bg-status-scheduled/10 text-status-scheduled text-xs font-semibold rounded-full">
-                    Available
-                  </span>
-                </div>
-                <p className="text-gray-600 mb-3">Test your knowledge on arrays, linked lists, trees, and sorting algorithms</p>
-                <div className="flex items-center gap-6 text-sm text-gray-500">
-                  <div className="flex items-center gap-1">
-                    <svg className="h-4 w-4 text-student-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                    <span>25 questions</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <svg className="h-4 w-4 text-student-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    <span>60 minutes</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <button 
-              onClick={() => handleStartExam('exam-1')}
-              className="w-full px-6 py-3 bg-student-600 text-white rounded-xl text-sm font-semibold 
-                        hover:bg-student-700 shadow-dashboard hover:shadow-dashboard-hover 
-                        flex items-center justify-center gap-2 transition-all duration-300 
-                        group-hover:scale-[1.05]"
-            >
-              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-              </svg>
-              Start Exam
-            </button>
-          </div>
-
-          {/* Exam Card 2 - In Progress */}
-          <div className="bg-white rounded-xl shadow-dashboard hover:shadow-dashboard-hover 
-                          border hover:border-status-active/20 p-6 transition-all duration-300 
-                          group hover:scale-[1.02]">
-            <div className="flex justify-between items-start mb-4">
-              <div className="flex-1">
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-lg font-semibold text-gray-900">Database Management</h3>
-                  <span className="px-3 py-1 bg-status-active/10 text-status-active text-xs font-semibold rounded-full">
-                    In Progress
-                  </span>
-                </div>
-                <p className="text-gray-600 mb-3">SQL queries, normalization, transactions, and database design</p>
-                <div className="flex items-center gap-6 text-sm text-gray-500">
-                  <div className="flex items-center gap-1">
-                    <svg className="h-4 w-4 text-student-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                    <span>20 questions</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <svg className="h-4 w-4 text-student-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    <span>45 minutes</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <button 
-              onClick={() => handleStartExam('exam-2')}
-              className="w-full px-6 py-3 border-2 border-student-200 text-student-700 
-                        rounded-xl text-sm font-semibold hover:bg-student-50 
-                        hover:border-student-400 hover:shadow-dashboard 
-                        flex items-center justify-center gap-2 transition-all duration-300"
-            >
-              Resume Exam
-            </button>
-          </div>
-        </div>
-      </div>
-    </>
-  );
+const statusTone = { active: 'bg-emerald-50 text-emerald-700', scheduled: 'bg-sky-50 text-sky-700' };
+const AvailableExams = ({ exams, loading }) => {
+  const [filter, setFilter] = useState('all'); const navigate = useNavigate();
+  const visible = useMemo(() => filter === 'all' ? exams : exams.filter((exam) => exam.status === filter), [exams, filter]);
+  const startExam = (exam) => { if (exam.status === 'active') navigate(`/exam/${exam.exam_id}`); };
+  return <section className="rounded-2xl border border-slate-200/80 bg-white shadow-sm"><div className="border-b border-slate-100 px-5 py-5 sm:px-6"><div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start"><div><div className="flex items-center gap-2"><h2 className="text-lg font-semibold text-slate-900">Join an exam</h2><span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">{exams.length} available</span></div><p className="mt-1 text-sm text-slate-500">Only live and scheduled exams assigned to you appear here.</p></div></div><div className="mt-4 flex gap-2 overflow-x-auto">{['all', 'active', 'scheduled'].map((item) => <button key={item} onClick={() => setFilter(item)} className={`whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-semibold capitalize ${filter === item ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>{item}</button>)}</div></div><div className="divide-y divide-slate-100">{loading ? <p className="px-6 py-14 text-center text-sm text-slate-500">Loading your assessments…</p> : visible.length ? visible.map((exam) => <article key={exam.assignment_id} className="flex flex-col gap-4 px-5 py-5 transition hover:bg-slate-50/80 sm:flex-row sm:items-center sm:justify-between sm:px-6"><div className="flex min-w-0 items-start gap-3"><span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-emerald-50 text-emerald-600"><svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.59a1 1 0 01.7.29l5.42 5.42a1 1 0 01.29.7V19a2 2 0 01-2 2z" /></svg></span><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h3 className="truncate font-semibold text-slate-800">{exam.title}</h3><span className={`rounded-full px-2 py-0.5 text-xs font-semibold capitalize ${statusTone[exam.status] || statusTone.scheduled}`}>{exam.status}</span></div><p className="mt-1 line-clamp-1 text-sm text-slate-500">{exam.description}</p><div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500"><span>{new Intl.DateTimeFormat('en-IN', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(exam.start_datetime))}</span><span>{exam.duration_minutes} min</span><span>{exam.total_marks} marks</span></div></div></div>{exam.status === 'active' ? <button onClick={() => startExam(exam)} className="w-fit rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700">Join now →</button> : <button disabled className="w-fit cursor-not-allowed rounded-xl bg-slate-100 px-4 py-2.5 text-sm font-semibold text-slate-500">Opens on schedule</button>}</article>) : <div className="px-6 py-14 text-center"><p className="font-medium text-slate-700">No {filter === 'all' ? '' : filter} exams</p><p className="mt-1 text-sm text-slate-500">Live or scheduled assignments will appear here.</p></div>}</div></section>;
 };
-
 export default AvailableExams;
