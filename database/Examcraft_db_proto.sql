@@ -80,6 +80,10 @@ CREATE TABLE IF NOT EXISTS exams (
     total_marks INT NOT NULL,
     max_attempts INT DEFAULT 1,
     status ENUM('draft', 'scheduled', 'active', 'completed', 'cancelled') DEFAULT 'draft',
+    exam_mode ENUM('online', 'offline') DEFAULT 'online',
+    subject_label VARCHAR(150),
+    domain_label VARCHAR(150),
+    sections_json JSON,
     seb_required BOOLEAN DEFAULT TRUE,  -- Safe Exam Browser
     seb_quit_password VARCHAR(50),
     instructions TEXT,
@@ -104,6 +108,7 @@ CREATE TABLE IF NOT EXISTS questions (
     max_marks INT NOT NULL DEFAULT 1,
     explanation TEXT,
     order_sequence INT DEFAULT 0,
+    section_label VARCHAR(150),
     FOREIGN KEY (exam_id) REFERENCES exams(exam_id) ON DELETE CASCADE,
     FOREIGN KEY (type_id) REFERENCES question_types(type_id),
     INDEX idx_exam_order (exam_id, order_sequence)
@@ -207,6 +212,32 @@ CREATE TABLE IF NOT EXISTS question_bank (
     FOREIGN KEY (type_id) REFERENCES question_types(type_id),
     FOREIGN KEY (created_by) REFERENCES users(user_id),
     FULLTEXT(question_text)
+);
+
+-- 13b. Question Bank Groups (saved reusable question sets for exams)
+CREATE TABLE IF NOT EXISTS question_bank_groups (
+    question_bank_group_id INT PRIMARY KEY AUTO_INCREMENT,
+    institute_id INT NOT NULL,
+    department_id INT NOT NULL,
+    group_name VARCHAR(150) NOT NULL,
+    description TEXT,
+    questions_json JSON NOT NULL,
+    question_count INT NOT NULL DEFAULT 0,
+    created_by INT NOT NULL,
+    subject_label VARCHAR(150),
+    domain_label VARCHAR(150),
+    source_exam_id INT NULL,
+    source_type ENUM('manual', 'exam') DEFAULT 'manual',
+    exam_mode ENUM('online', 'offline') DEFAULT 'online',
+    sections_json JSON,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (institute_id) REFERENCES institutes(institute_id),
+    FOREIGN KEY (department_id) REFERENCES departments(department_id),
+    FOREIGN KEY (created_by) REFERENCES users(user_id),
+    FOREIGN KEY (source_exam_id) REFERENCES exams(exam_id) ON DELETE SET NULL,
+    INDEX idx_bank_group_dept (department_id, created_at),
+    INDEX idx_bank_group_institute (institute_id, created_at)
 );
 
 -- Update questions table to reference question_bank
