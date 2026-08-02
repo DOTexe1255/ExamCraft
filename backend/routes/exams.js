@@ -30,10 +30,7 @@ router.get('/', authMiddleware, async (req, res) => {
     conn = await connectToMySQL();
 
     const baseQuery = `
-          SELECT exam_id, institute_id, department_id, title, description, start_datetime,
-            duration_minutes, total_marks, max_attempts, status, exam_mode, subject_label,
-            domain_label, sections_json, seb_required,
-             seb_quit_password, instructions, created_by, created_at
+          SELECT *
       FROM exams
     `;
 

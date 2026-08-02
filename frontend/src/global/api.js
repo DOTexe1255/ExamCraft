@@ -22,6 +22,8 @@ export const buildApiUrl = (path) => {
   return `${API_BASE_URL}${path.startsWith('/') ? path : `/${path}`}`;
 };
 
+import { clearStoredAuth } from './authStorage';
+
 export const requestJson = async (path, options = {}) => {
   const response = await fetch(buildApiUrl(path), {
     credentials: 'include',
@@ -41,6 +43,17 @@ export const requestJson = async (path, options = {}) => {
     const message = typeof data === 'string'
       ? data
       : data?.message || data?.error || 'Request failed';
+
+    if (response.status === 401 || response.status === 403) {
+      clearStoredAuth();
+
+      if (typeof window !== 'undefined') {
+        const currentPath = window.location.hash || '';
+        if (currentPath.includes('student-dashboard') || currentPath.includes('department-dashboard') || currentPath.includes('institute-dashboard')) {
+          window.location.hash = '#/login';
+        }
+      }
+    }
 
     const error = new Error(message);
     error.status = response.status;

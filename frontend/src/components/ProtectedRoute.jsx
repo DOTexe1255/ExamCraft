@@ -1,5 +1,6 @@
 import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
+import { useMyContext } from '../global/AuthContext';
 import { getStoredAuth } from '../global/authStorage';
 
 const getDashboardPath = (role) => {
@@ -11,7 +12,8 @@ const getDashboardPath = (role) => {
 
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const location = useLocation();
-  const auth = getStoredAuth();
+  const { auth: contextAuth } = useMyContext() || {};
+  const auth = contextAuth ?? getStoredAuth();
 
   if (!auth?.isAuthenticated) {
     if (location.pathname === '/login') {

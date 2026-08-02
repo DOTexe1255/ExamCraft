@@ -3,6 +3,7 @@ import './App.css'
 import React from "react";
 import { HashRouter, Navigate, Route, Routes } from "react-router-dom";
 import Index from "./components/Index";
+import { useMyContext } from './global/AuthContext';
 import StudentDashboard from "./components/student/StudentDashboard";
 import DepartmentDashboard from "./components/department/DepartmentDashboard";
 import AdministrationLogin from "./components/AdministrationLogin";
@@ -21,7 +22,8 @@ const getDashboardPath = (role) => {
 };
 
 const App = () => {
-  const auth = getStoredAuth();
+  const { auth: contextAuth } = useMyContext() || {};
+  const auth = contextAuth ?? getStoredAuth();
 
   return (
     <HashRouter>
