@@ -12,6 +12,7 @@ const CODE_LANGUAGES = [
   { value: 'java', label: 'Java' },
   { value: 'cpp', label: 'C++' },
   { value: 'c', label: 'C' },
+  { value: 'Any', label: 'Any' },
 ];
 
 const createQuestion = () => ({
