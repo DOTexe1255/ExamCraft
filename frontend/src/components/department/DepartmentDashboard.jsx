@@ -3,7 +3,6 @@ import Header from './Header';
 import StatesCards from './StatesCards';
 import ExamList from './ExamList';
 import QuickActions from './QuickActions';
-import QuestionBankModal from './QuestionBankModal';
 import { requestJson } from '../../global/api';
 import { getStoredAuth } from '../../global/authStorage';
 
@@ -15,7 +14,6 @@ const DepartmentDashboard = () => {
   const [exams, setExams] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [questionBankOpen, setQuestionBankOpen] = useState(false);
 
   const loadDashboard = useCallback(async () => {
     setLoading(true);
@@ -58,26 +56,6 @@ const DepartmentDashboard = () => {
           <StatesCards summary={data?.summary} loading={loading} />
         </section>
 
-        <section className="mt-6">
-          <div className="rounded-2xl border border-cyan-100 bg-gradient-to-r from-white to-cyan-50/60 p-5 shadow-sm">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h2 className="text-lg font-semibold text-slate-900">Question bank</h2>
-                <p className="mt-1 text-sm text-slate-500">
-                  Save groups of reusable questions and import them into exams later.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setQuestionBankOpen(true)}
-                className="rounded-xl bg-cyan-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-cyan-700"
-              >
-                + Add question bank
-              </button>
-            </div>
-          </div>
-        </section>
-
         <section className="mt-7 grid grid-cols-1 gap-7 xl:grid-cols-[minmax(0,1fr)_360px]">
           <ExamList
             exams={exams}
@@ -96,14 +74,6 @@ const DepartmentDashboard = () => {
           </aside>
         </section>
       </div>
-
-      <QuestionBankModal
-        isOpen={questionBankOpen}
-        onClose={() => setQuestionBankOpen(false)}
-        instituteId={instituteId}
-        departmentId={departmentId}
-        onSaved={loadDashboard}
-      />
     </main>
   );
 };
