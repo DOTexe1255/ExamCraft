@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import { requestJson } from '../../global/api';
 
 const QUESTION_TYPES = [
   { value: 'mcq', label: 'MCQ' },
@@ -78,8 +77,6 @@ const CreateExamModal = ({ isOpen, onClose, onSubmit, instituteId, departmentId 
   });
   const [questionBank, setQuestionBank] = useState([]);
   const [sections, setSections] = useState([createSection()]);
-  const [savedQuestionBanks, setSavedQuestionBanks] = useState([]);
-  const [selectedSavedBank, setSelectedSavedBank] = useState('');
   const [errors, setErrors] = useState(createQuestionErrorMap());
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -102,48 +99,9 @@ const CreateExamModal = ({ isOpen, onClose, onSubmit, instituteId, departmentId 
       });
       setQuestionBank([]);
       setSections([createSection()]);
-      setSelectedSavedBank('');
       setErrors(createQuestionErrorMap());
-
-      const loadQuestionBanks = async () => {
-        try {
-          const response = await requestJson('/api/question-banks');
-          setSavedQuestionBanks(response.question_banks || []);
-        } catch (error) {
-          setSavedQuestionBanks([]);
-        }
-      };
-
-      loadQuestionBanks();
     }
   }, [isOpen]);
-
-  const importSavedQuestionBank = () => {
-    const bank = savedQuestionBanks.find((item) => String(item.question_bank_group_id) === String(selectedSavedBank));
-
-    if (!bank) {
-      return;
-    }
-
-    const importedQuestions = (bank.questions || []).map(normalizeBankQuestion);
-    const importedSections = Array.isArray(bank.sections_json) ? bank.sections_json : (Array.isArray(bank.sections) ? bank.sections : []);
-
-    setQuestionBank(importedQuestions);
-    if (importedSections.length > 0) {
-      setSections(importedSections.map((section) => ({
-        id: section.id || `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-        title: section.title || section.section_name || 'Section',
-        section_type: section.section_type || 'custom',
-      })));
-    }
-    if (importedQuestions.length > 0) {
-      setFormData((previous) => ({
-        ...previous,
-        question_count: importedQuestions.length,
-        exam_type: importedQuestions[0].type,
-      }));
-    }
-  };
 
   const handleInputChange = (event) => {
     const { name, value, type, checked } = event.target;
@@ -545,41 +503,6 @@ const CreateExamModal = ({ isOpen, onClose, onSubmit, instituteId, departmentId 
               <div>
                 <h4 className="text-lg font-semibold text-gray-900">Question Bank</h4>
                 <p className="mt-1 text-sm text-slate-600">Add reusable questions here. They are stored with the exam and can be reused later.</p>
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-cyan-100 bg-white p-4">
-              <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
-                <div className="flex-1">
-                  <label className="mb-2 block text-sm font-medium text-gray-700" htmlFor="saved_question_bank">
-                    Import saved question bank
-                  </label>
-                  <select
-                    id="saved_question_bank"
-                    value={selectedSavedBank}
-                    onChange={(event) => setSelectedSavedBank(event.target.value)}
-                    className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500"
-                  >
-                    <option value="">Select a saved bank to import</option>
-                    {savedQuestionBanks.map((bank) => (
-                      <option key={bank.question_bank_group_id} value={bank.question_bank_group_id}>
-                        {bank.group_name} ({bank.question_count || bank.questions?.length || 0} questions)
-                      </option>
-                    ))}
-                  </select>
-                  <p className="mt-2 text-xs text-slate-500">
-                    {savedQuestionBanks.length ? 'Load a saved group and edit it before creating the exam.' : 'No saved question banks yet.'}
-                  </p>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={importSavedQuestionBank}
-                  disabled={!selectedSavedBank}
-                  className="inline-flex items-center justify-center rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  Import bank
-                </button>
               </div>
             </div>
 
