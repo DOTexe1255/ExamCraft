@@ -2,11 +2,12 @@ import React, { useEffect, useState } from 'react';
 
 const QUESTION_TYPES = [
   { value: 'mcq', label: 'MCQ' },
-  { value: 'short_answer', label: 'Short Answer' },
+  { value: 'descriptive', label: 'Descriptive' },
   { value: 'code', label: 'Coding' },
 ];
 
 const CODE_LANGUAGES = [
+  { value: 'any', label: 'Any' },
   { value: 'javascript', label: 'JavaScript' },
   { value: 'python', label: 'Python' },
   { value: 'java', label: 'Java' },
@@ -24,8 +25,7 @@ const createQuestion = () => ({
   options: ['', '', '', ''],
   correct_option: 0,
   short_answer: '',
-  language: 'javascript',
-  starter_code: '',
+  language: 'any',
   sample_input: '',
   sample_output: '',
 });
@@ -54,8 +54,7 @@ const normalizeBankQuestion = (question) => ({
     )
     : 0,
   short_answer: question.correct_answer || '',
-  language: question.language || 'javascript',
-  starter_code: question.starter_code || '',
+  language: question.language || 'any',
   sample_input: question.sample_input || '',
   sample_output: question.sample_output || '',
 });
@@ -201,7 +200,7 @@ const CreateExamModal = ({ isOpen, onClose, onSubmit, instituteId, departmentId 
           options,
           correct_answer: correctAnswer,
         });
-      } else if (questionType === 'short_answer') {
+      } else if (questionType === 'descriptive') {
         const shortAnswer = question.short_answer.trim();
 
         if (!shortAnswer) {
@@ -209,7 +208,7 @@ const CreateExamModal = ({ isOpen, onClose, onSubmit, instituteId, departmentId 
         }
 
         normalizedQuestions.push({
-          type: questionType,
+          type: 'descriptive',
           question_text: questionText,
           marks: Number(question.marks) || 1,
           section_id: question.section_id || '',
@@ -228,7 +227,6 @@ const CreateExamModal = ({ isOpen, onClose, onSubmit, instituteId, departmentId 
           section_id: question.section_id || '',
           section_title: findSectionTitle(question.section_id),
           language: question.language,
-          starter_code: question.starter_code.trim(),
           sample_input: question.sample_input.trim(),
           sample_output: question.sample_output.trim(),
         });
@@ -519,7 +517,7 @@ const CreateExamModal = ({ isOpen, onClose, onSubmit, instituteId, departmentId 
 
             {questionBank.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-4 py-10 text-center text-sm text-slate-500">
-                No questions yet. Add MCQ, short answer, or coding questions to build a reusable bank for this exam.
+                No questions yet. Add MCQ, descriptive, or coding questions to build a reusable bank for this exam.
               </div>
             ) : (
               <div className="space-y-4">
@@ -638,9 +636,9 @@ const CreateExamModal = ({ isOpen, onClose, onSubmit, instituteId, departmentId 
                           </div>
                         )}
 
-                        {question.type === 'short_answer' && (
+                        {question.type === 'descriptive' && (
                           <div>
-                            <label className="mb-2 block text-sm font-medium text-gray-700">Expected Answer *</label>
+                            <label className="mb-2 block text-sm font-medium text-gray-700">Descriptive Answer *</label>
                             <textarea
                               rows={3}
                               value={question.short_answer}
@@ -672,19 +670,8 @@ const CreateExamModal = ({ isOpen, onClose, onSubmit, instituteId, departmentId 
                                     </option>
                                   ))}
                                 </select>
+                                <p className="mt-1 text-xs text-slate-500">Any means the student may choose any language at attempt time.</p>
                                 {questionErrors.language && <p className="mt-1 text-sm text-red-600">{questionErrors.language}</p>}
-                              </div>
-
-                              <div>
-                                <label className="mb-2 block text-sm font-medium text-gray-700">Starter Code</label>
-                                <textarea
-                                  rows={4}
-                                  value={question.starter_code}
-                                  onChange={(event) => updateQuestion(question.id, 'starter_code', event.target.value)}
-                                  className="w-full rounded-xl border border-gray-200 px-4 py-3 font-mono text-sm focus:border-teacher-500 focus:ring-2 focus:ring-teacher-500"
-                                  placeholder="Optional starter template for students..."
-                                />
-                              </div>
                             </div>
 
                             <div className="grid gap-4 md:grid-cols-2">

@@ -63,7 +63,7 @@ CREATE TABLE IF NOT EXISTS user_profiles (
 -- 5. Exam Categories (question types)
 CREATE TABLE IF NOT EXISTS question_types (
     type_id INT PRIMARY KEY AUTO_INCREMENT,
-    type_name ENUM('mcq', 'true_false', 'short_answer', 'code') NOT NULL,
+    type_name ENUM('mcq', 'true_false', 'descriptive', 'code') NOT NULL,
     max_marks INT DEFAULT 1,
     has_options BOOLEAN DEFAULT TRUE
 );
@@ -296,7 +296,7 @@ CREATE TABLE IF NOT EXISTS institute_settings (
 CREATE TABLE IF NOT EXISTS coding_question_details (
     coding_detail_id INT PRIMARY KEY AUTO_INCREMENT,
     question_id INT NOT NULL UNIQUE,
-    language_type ENUM('java', 'python', 'cpp', 'javascript', 'c') NOT NULL,
+    language_type ENUM('any', 'java', 'python', 'cpp', 'javascript', 'c') NOT NULL DEFAULT 'any',
     starter_code TEXT,
     sample_input TEXT,
     sample_output TEXT,

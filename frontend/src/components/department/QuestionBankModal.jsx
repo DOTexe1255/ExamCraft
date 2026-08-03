@@ -3,11 +3,12 @@ import { requestJson } from '../../global/api';
 
 const QUESTION_TYPES = [
   { value: 'mcq', label: 'MCQ' },
-  { value: 'short_answer', label: 'Short Answer' },
+  { value: 'descriptive', label: 'Descriptive' },
   { value: 'code', label: 'Coding' },
 ];
 
 const CODE_LANGUAGES = [
+  { value: 'any', label: 'Any' },
   { value: 'javascript', label: 'JavaScript' },
   { value: 'python', label: 'Python' },
   { value: 'java', label: 'Java' },
@@ -24,8 +25,7 @@ const createQuestion = () => ({
   options: ['', '', '', ''],
   correct_option: 0,
   short_answer: '',
-  language: 'javascript',
-  starter_code: '',
+  language: 'any',
   sample_input: '',
   sample_output: '',
 });
@@ -37,18 +37,17 @@ const createSection = (title = 'Section 1', section_type = 'custom') => ({
 });
 
 const normalizeQuestion = (question) => ({
-  type: question.type,
+  type: question.type === 'short_answer' ? 'descriptive' : question.type,
   question_text: question.question_text.trim(),
   marks: Number(question.marks) || 1,
   section_id: question.section_id || '',
   options: question.type === 'mcq' ? question.options.map((option) => option.trim()).filter(Boolean) : undefined,
   correct_answer: question.type === 'mcq'
     ? (question.options[question.correct_option] || '').trim()
-    : question.type === 'short_answer'
+    : question.type === 'descriptive'
       ? question.short_answer.trim()
       : undefined,
   language: question.type === 'code' ? question.language : undefined,
-  starter_code: question.type === 'code' ? question.starter_code.trim() : undefined,
   sample_input: question.type === 'code' ? question.sample_input.trim() : undefined,
   sample_output: question.type === 'code' ? question.sample_output.trim() : undefined,
 });
@@ -146,7 +145,7 @@ const QuestionBankModal = ({ isOpen, onClose, instituteId, departmentId, onSaved
         }
       }
 
-      if (question.type === 'short_answer' && !question.short_answer.trim()) {
+      if (question.type === 'descriptive' && !question.short_answer.trim()) {
         currentErrors.short_answer = 'Expected answer is required';
       }
 
@@ -404,9 +403,9 @@ const QuestionBankModal = ({ isOpen, onClose, instituteId, departmentId, onSaved
                       </div>
                     )}
 
-                    {question.type === 'short_answer' && (
+                    {question.type === 'descriptive' && (
                       <div>
-                        <label className="mb-2 block text-sm font-medium text-slate-700">Expected Answer *</label>
+                        <label className="mb-2 block text-sm font-medium text-slate-700">Descriptive Answer *</label>
                         <textarea
                           rows={3}
                           value={question.short_answer}
@@ -429,15 +428,7 @@ const QuestionBankModal = ({ isOpen, onClose, instituteId, departmentId, onSaved
                             {CODE_LANGUAGES.map((language) => <option key={language.value} value={language.value}>{language.label}</option>)}
                           </select>
                           {questionErrors.language && <p className="mt-1 text-sm text-red-600">{questionErrors.language}</p>}
-                        </div>
-                        <div>
-                          <label className="mb-2 block text-sm font-medium text-slate-700">Starter Code</label>
-                          <textarea
-                            rows={3}
-                            value={question.starter_code}
-                            onChange={(event) => updateQuestion(question.id, 'starter_code', event.target.value)}
-                            className="w-full rounded-xl border border-slate-200 px-4 py-3 font-mono text-sm focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500"
-                          />
+                          <p className="mt-1 text-xs text-slate-500">Any means the student may choose any language at attempt time.</p>
                         </div>
                         <div>
                           <label className="mb-2 block text-sm font-medium text-slate-700">Sample Input</label>

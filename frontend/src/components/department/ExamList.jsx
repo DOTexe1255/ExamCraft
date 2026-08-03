@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
-import CreateExamModal from './CreateExamModal';
 import AddStudentModal from './AddStudentModal';
 import { buildApiUrl, requestJson } from '../../global/api';
+import { useNavigate } from 'react-router-dom';
 
 const statusStyles = {
   active: 'bg-emerald-50 text-emerald-700',
@@ -21,24 +21,22 @@ const toLocalDatetimeValue = (value) => {
 };
 
 const ExamList = ({ exams, loading, instituteId, departmentId, onChange }) => {
+  const navigate = useNavigate();
   const [filter, setFilter] = useState('all');
   const [selected, setSelected] = useState(null);
-  const [createOpen, setCreateOpen] = useState(false);
   const [studentOpen, setStudentOpen] = useState(false);
   const [downloadingId, setDownloadingId] = useState(null);
 
   const visible = useMemo(() => (filter === 'all' ? exams : exams.filter((exam) => exam.status === filter)), [exams, filter]);
 
-  const createExam = async (payload) => {
-    await requestJson('/api/exams', { method: 'POST', body: JSON.stringify(payload) });
-    setCreateOpen(false);
-    await onChange();
-  };
-
   const addStudent = async (payload) => {
     await requestJson('/api/auth/student-register', { method: 'POST', body: JSON.stringify(payload) });
     setStudentOpen(false);
     await onChange();
+  };
+
+  const openExamSettings = (examId) => {
+    navigate(`/department-exams/${examId}/settings`);
   };
 
   const downloadExamReport = async (examId) => {
@@ -99,7 +97,7 @@ const ExamList = ({ exams, loading, instituteId, departmentId, onChange }) => {
             <button onClick={() => setStudentOpen(true)} className="rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">
               Add student
             </button>
-            <button onClick={() => setCreateOpen(true)} className="rounded-xl bg-cyan-600 px-3.5 py-2.5 text-sm font-semibold text-white hover:bg-cyan-700">
+            <button onClick={() => navigate('/department-exams/new')} className="rounded-xl bg-cyan-600 px-3.5 py-2.5 text-sm font-semibold text-white hover:bg-cyan-700">
               + Create exam
             </button>
           </div>
@@ -154,8 +152,16 @@ const ExamList = ({ exams, loading, instituteId, departmentId, onChange }) => {
                 <button onClick={() => setSelected(exam)} className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">
                   Details
                 </button>
-                <button onClick={() => rescheduleExam(exam)} className="rounded-xl border border-cyan-200 px-3 py-2 text-xs font-semibold text-cyan-700 hover:bg-cyan-50">
-                  Reschedule
+                <button
+                  onClick={() => openExamSettings(exam.exam_id)}
+                  className="inline-flex items-center gap-2 rounded-xl border border-cyan-200 px-3 py-2 text-xs font-semibold text-cyan-700 hover:bg-cyan-50"
+                  title="Open exam settings"
+                >
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.591 1.058c1.527-.89 3.29.872 2.4 2.4a1.724 1.724 0 001.058 2.59c1.756.427 1.756 2.925 0 3.352a1.724 1.724 0 00-1.058 2.591c.89 1.527-.873 3.29-2.4 2.4a1.724 1.724 0 00-2.59 1.058c-.427 1.756-2.925 1.756-3.352 0a1.724 1.724 0 00-2.591-1.058c-1.527.89-3.29-.873-2.4-2.4a1.724 1.724 0 00-1.058-2.59c-1.756-.427-1.756-2.925 0-3.352a1.724 1.724 0 001.058-2.591c-.89-1.527.873-3.29 2.4-2.4.943.55 2.16.08 2.591-1.058z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  Settings
                 </button>
                 {exam.status === 'completed' && (
                   <button
@@ -174,14 +180,13 @@ const ExamList = ({ exams, loading, instituteId, departmentId, onChange }) => {
         )}
       </div>
 
-      {selected && <ExamDetails exam={selected} onClose={() => setSelected(null)} onReschedule={() => rescheduleExam(selected)} />}
-      <CreateExamModal isOpen={createOpen} onClose={() => setCreateOpen(false)} onSubmit={createExam} instituteId={instituteId} departmentId={departmentId} />
+      {selected && <ExamDetails exam={selected} onClose={() => setSelected(null)} onOpenSettings={() => openExamSettings(selected.exam_id)} />}
       <AddStudentModal isOpen={studentOpen} onClose={() => setStudentOpen(false)} onSubmit={addStudent} instituteId={instituteId} departmentId={departmentId} />
     </section>
   );
 };
 
-const ExamDetails = ({ exam, onClose, onReschedule }) => (
+const ExamDetails = ({ exam, onClose, onOpenSettings }) => (
   <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4" onClick={onClose}>
     <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl" onClick={(event) => event.stopPropagation()}>
       <div className="flex items-start justify-between">
@@ -202,8 +207,8 @@ const ExamDetails = ({ exam, onClose, onReschedule }) => (
       </dl>
 
       <div className="mt-6 flex gap-3">
-        <button onClick={onReschedule} className="flex-1 rounded-xl border border-cyan-200 py-2.5 text-sm font-semibold text-cyan-700 hover:bg-cyan-50">
-          Reschedule
+        <button onClick={onOpenSettings} className="flex-1 rounded-xl border border-cyan-200 py-2.5 text-sm font-semibold text-cyan-700 hover:bg-cyan-50">
+          Open settings
         </button>
         <button onClick={onClose} className="flex-1 rounded-xl bg-slate-900 py-2.5 text-sm font-semibold text-white">
           Close

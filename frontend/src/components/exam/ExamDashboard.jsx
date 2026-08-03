@@ -1,8 +1,17 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import Editor from '@monaco-editor/react';
 import { requestJson } from '../../global/api';
 
 const STORAGE_KEY = 'examcraft_student_attempts';
+
+const CODE_LANGUAGE_OPTIONS = [
+  { value: 'javascript', label: 'JavaScript' },
+  { value: 'python', label: 'Python' },
+  { value: 'java', label: 'Java' },
+  { value: 'cpp', label: 'C++' },
+  { value: 'c', label: 'C' },
+];
 
 const getStoredAttempts = () => {
   if (typeof window === 'undefined') return {};
@@ -14,43 +23,51 @@ const getStoredAttempts = () => {
   }
 };
 
-const buildQuestions = (exam) => {
-  const title = exam?.title || 'Exam';
-  const description = exam?.description || 'Practice assessment';
+const normalizeQuestionType = (type) => (type === 'short_answer' ? 'descriptive' : (type || 'mcq'));
 
-  return [
-    {
-      id: 'q1',
-      text: `${title}: Which option best describes the purpose of this assessment?`,
-      options: [
-        { id: 'a', text: 'To evaluate knowledge on the given topic' },
-        { id: 'b', text: 'To create a timetable' },
-        { id: 'c', text: 'To manage student records' },
-        { id: 'd', text: 'To send notifications' },
-      ],
-    },
-    {
-      id: 'q2',
-      text: `${description} Which action is most appropriate while attempting this exam?`,
-      options: [
-        { id: 'a', text: 'Read each question carefully before answering' },
-        { id: 'b', text: 'Skip all questions' },
-        { id: 'c', text: 'Submit immediately' },
-        { id: 'd', text: 'Restart the browser' },
-      ],
-    },
-    {
-      id: 'q3',
-      text: `This exam has a duration of ${exam?.duration_minutes || 60} minutes. What is the best strategy?`,
-      options: [
-        { id: 'a', text: 'Manage time and move between questions using the navigation controls' },
-        { id: 'b', text: 'Answer only the first question' },
-        { id: 'c', text: 'Leave all questions blank' },
-        { id: 'd', text: 'Close the tab after each answer' },
-      ],
-    },
-  ];
+const normalizeQuestion = (question, index) => {
+  const type = normalizeQuestionType(question?.type);
+  const options = Array.isArray(question?.options)
+    ? question.options
+      .map((option, optionIndex) => (typeof option === 'object' && option !== null
+        ? {
+            id: option.id || String(optionIndex),
+            text: String(option.text ?? option.label ?? option.value ?? ''),
+          }
+        : {
+            id: String(optionIndex),
+            text: String(option ?? ''),
+          }))
+      .filter((option) => option.text.trim())
+    : [];
+
+  const testCases = Array.isArray(question?.testCases || question?.test_cases)
+    ? (question?.testCases || question?.test_cases).map((item) => ({
+        input: String(item?.input ?? ''),
+        expected: String(item?.expected ?? ''),
+      }))
+    : [];
+
+  return {
+    id: question?.id || `q${index + 1}`,
+    type,
+    title: question?.title || '',
+    text: question?.question_text || question?.description || question?.title || '',
+    description: question?.description || '',
+    marks: Number(question?.marks || 1),
+    sectionTitle: question?.section_title || '',
+    options,
+    correctAnswer: question?.correct_answer || '',
+    language: question?.language || 'any',
+    functionName: question?.functionName || question?.function_name || '',
+    constraints: question?.constraints || '',
+    sampleInput: question?.sample_input || '',
+    sampleOutput: question?.sample_output || '',
+    testCases,
+  };
 };
+
+const buildQuestions = (exam) => (Array.isArray(exam?.question_bank) ? exam.question_bank : []).map(normalizeQuestion);
 
 const ExamDashboard = () => {
   const { examId } = useParams();
@@ -65,6 +82,7 @@ const ExamDashboard = () => {
   const [attemptCount, setAttemptCount] = useState(1);
   const [savedQuestions, setSavedQuestions] = useState({});
   const [statusMessage, setStatusMessage] = useState('');
+  const [runResults, setRunResults] = useState({});
 
   const persistAttempt = useCallback((overrides = {}) => {
     if (!examData?.id || typeof window === 'undefined') return;
@@ -89,23 +107,24 @@ const ExamDashboard = () => {
   const fetchExamData = useCallback(async () => {
     try {
       setIsLoading(true);
-      const response = await requestJson('/api/exams');
-      const exam = (response?.exams || []).find((item) => Number(item.exam_id) === Number(examId));
+      const response = await requestJson(`/api/exams/${examId}`);
+      const exam = response?.exam;
 
       if (!exam) {
         setExamData(null);
         return;
       }
 
+      const questions = buildQuestions(exam);
       const preparedExam = {
         id: exam.exam_id,
         title: exam.title,
         description: exam.description,
         duration: Number(exam.duration_minutes || 60),
         total_marks: exam.total_marks || 100,
-        passing_marks: 40,
+        passing_marks: exam.passing_marks || 40,
         instructions: exam.instructions,
-        questions: buildQuestions(exam),
+        questions,
       };
 
       const storedAttempts = getStoredAttempts();
@@ -167,21 +186,116 @@ const ExamDashboard = () => {
     return () => window.clearInterval(timer);
   }, [examData?.id, isSubmitted]);
 
+  const question = examData?.questions?.[currentQuestion];
+  const minutes = Math.floor(timeLeft / 60);
+  const seconds = timeLeft % 60;
+
+  const getCodeAnswer = (currentQuestionData) => {
+    const stored = answers[currentQuestionData.id];
+    const fallbackLanguage = currentQuestionData.language === 'any' ? 'javascript' : currentQuestionData.language;
+
+    if (stored && typeof stored === 'object') {
+      return {
+        language: stored.language || fallbackLanguage,
+        source: stored.source || '',
+      };
+    }
+
+    return {
+      language: fallbackLanguage,
+      source: '',
+    };
+  };
+
   const handleAnswerSelect = (questionId, answerId) => {
     setAnswers((current) => ({ ...current, [questionId]: answerId }));
     setStatusMessage('Option selected. Tap “Save answer” to keep it.');
   };
 
+  const updateDescriptiveAnswer = (questionId, value) => {
+    setAnswers((current) => ({ ...current, [questionId]: value }));
+  };
+
+  const updateCodeAnswer = (questionId, field, value) => {
+    setAnswers((current) => {
+      const previous = current[questionId] && typeof current[questionId] === 'object'
+        ? current[questionId]
+        : { language: 'javascript', source: '' };
+
+      return {
+        ...current,
+        [questionId]: {
+          ...previous,
+          [field]: value,
+        },
+      };
+    });
+  };
+
   const handleSaveAnswer = () => {
     if (!question) return;
 
-    if (!answers[question.id]) {
+    if (question.type === 'mcq' && !answers[question.id]) {
       setStatusMessage('Please select an option before saving.');
       return;
     }
 
+    if (question.type === 'descriptive' && !String(answers[question.id] || '').trim()) {
+      setStatusMessage('Please write an answer before saving.');
+      return;
+    }
+
+    if (question.type === 'code') {
+      const codeAnswer = getCodeAnswer(question);
+      if (!codeAnswer.source.trim()) {
+        setStatusMessage('Write your code before saving.');
+        return;
+      }
+    }
+
     setSavedQuestions((current) => ({ ...current, [question.id]: true }));
     setStatusMessage('Answer saved. You can resume later from the dashboard.');
+  };
+
+  const handleRunCode = async () => {
+    if (!question || question.type !== 'code') {
+      return;
+    }
+
+    const codeAnswer = getCodeAnswer(question);
+
+    try {
+      setRunResults((current) => ({ ...current, [question.id]: { running: true } }));
+      const response = await requestJson('/api/run', {
+        method: 'POST',
+        body: JSON.stringify({
+          language: codeAnswer.language,
+          source: codeAnswer.source,
+          input: question.testCases?.[0]?.input || '',
+        }),
+      });
+
+      setRunResults((current) => ({
+        ...current,
+        [question.id]: {
+          running: false,
+          stdout: response.stdout || '',
+          stderr: response.stderr || '',
+          exitCode: response.exitCode || 0,
+        },
+      }));
+      setStatusMessage('Code executed successfully.');
+    } catch (error) {
+      setRunResults((current) => ({
+        ...current,
+        [question.id]: {
+          running: false,
+          stdout: '',
+          stderr: error.message || 'Execution failed',
+          exitCode: 1,
+        },
+      }));
+    }
   };
 
   const handleNext = () => {
@@ -244,10 +358,6 @@ const ExamDashboard = () => {
     navigate('/student-dashboard');
   };
 
-  const question = examData?.questions?.[currentQuestion];
-  const minutes = Math.floor(timeLeft / 60);
-  const seconds = timeLeft % 60;
-
   if (isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-student-50 to-student-100 p-6">
@@ -307,8 +417,7 @@ const ExamDashboard = () => {
     );
   }
 
-  const minutesLabel = Math.floor(timeLeft / 60);
-  const secondsLabel = timeLeft % 60;
+  const currentCodeAnswer = question.type === 'code' ? getCodeAnswer(question) : null;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-student-50 to-student-100">
@@ -323,7 +432,7 @@ const ExamDashboard = () => {
               <div className="text-right">
                 <div className="text-sm text-gray-500">Time Remaining</div>
                 <div className={`text-2xl font-mono font-bold ${timeLeft < 300 ? 'text-red-600 animate-pulse' : 'text-student-600'}`}>
-                  {minutesLabel.toString().padStart(2, '0')}:{secondsLabel.toString().padStart(2, '0')}
+                  {String(minutes).padStart(2, '0')}:{String(seconds).padStart(2, '0')}
                 </div>
               </div>
               <div className="text-center">
@@ -348,40 +457,146 @@ const ExamDashboard = () => {
             {statusMessage}
           </div>
         )}
+
         <div className="mb-8 grid gap-6 lg:grid-cols-[minmax(0,1fr)_280px]">
           <div className="rounded-3xl border border-student-100/50 bg-white/70 p-8 shadow-2xl backdrop-blur-sm">
             <div className="mb-8">
-              <h2 className="mb-4 text-2xl font-bold text-gray-900">
-                Q{currentQuestion + 1}. {question.text}
-              </h2>
-              <p className="text-sm text-gray-600">Choose the best option, then save it to keep your progress.</p>
+              <h2 className="mb-4 text-2xl font-bold text-gray-900">Q{currentQuestion + 1}. {question.title || question.text}</h2>
+              {question.type === 'mcq' && <p className="text-sm text-gray-600">Choose the best option, then save it to keep your progress.</p>}
+              {question.type === 'descriptive' && <p className="text-sm text-gray-600">Write a clear descriptive answer, then save it to keep your progress.</p>}
+              {question.type === 'code' && <p className="text-sm text-gray-600">Write your solution, run it if needed, then save it to keep your progress.</p>}
             </div>
 
-            <div className="space-y-3">
-              {question.options.map((option, index) => (
-                <button
-                  key={option.id}
-                  onClick={() => handleAnswerSelect(question.id, option.id)}
-                  className={`group flex w-full items-start gap-4 rounded-2xl border-2 p-6 text-left transition-all duration-300 hover:-translate-y-1 hover:shadow-xl ${
-                    answers[question.id] === option.id
-                      ? 'border-student-500 bg-gradient-to-r from-student-50 to-student-100 shadow-student-lg ring-4 ring-student-200/50'
-                      : 'border-gray-200 hover:border-student-300 hover:bg-gray-50'
-                  }`}
-                >
-                  <span className="w-12 flex-shrink-0 text-xl font-bold text-student-500 transition-colors group-hover:text-student-600">
-                    {String.fromCharCode(65 + index)}.
-                  </span>
-                  <span className="flex-1 leading-relaxed">{option.text}</span>
-                  {answers[question.id] === option.id && (
-                    <div className="ml-auto flex h-5 w-5 items-center justify-center rounded-full bg-student-500 shadow-lg">
-                      <svg className="h-3 w-3 text-white" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                      </svg>
-                    </div>
-                  )}
-                </button>
-              ))}
-            </div>
+            {question.type === 'mcq' && (
+              <div className="space-y-3">
+                {question.options.map((option, index) => (
+                  <button
+                    key={option.id}
+                    onClick={() => handleAnswerSelect(question.id, option.id)}
+                    className={`group flex w-full items-start gap-4 rounded-2xl border-2 p-6 text-left transition-all duration-300 hover:-translate-y-1 hover:shadow-xl ${
+                      answers[question.id] === option.id
+                        ? 'border-student-500 bg-gradient-to-r from-student-50 to-student-100 shadow-student-lg ring-4 ring-student-200/50'
+                        : 'border-gray-200 hover:border-student-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    <span className="w-12 flex-shrink-0 text-xl font-bold text-student-500 transition-colors group-hover:text-student-600">{String.fromCharCode(65 + index)}.</span>
+                    <span className="flex-1 leading-relaxed">{option.text}</span>
+                    {answers[question.id] === option.id && (
+                      <div className="ml-auto flex h-5 w-5 items-center justify-center rounded-full bg-student-500 shadow-lg">
+                        <svg className="h-3 w-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
+                      </div>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {question.type === 'descriptive' && (
+              <div className="space-y-4">
+                <textarea
+                  rows={10}
+                  value={answers[question.id] || ''}
+                  onChange={(event) => updateDescriptiveAnswer(question.id, event.target.value)}
+                  className="w-full rounded-2xl border-2 border-gray-200 bg-white px-5 py-4 text-base leading-7 text-gray-800 outline-none transition focus:border-student-400 focus:ring-4 focus:ring-student-100"
+                  placeholder="Write your descriptive answer here..."
+                />
+              </div>
+            )}
+
+            {question.type === 'code' && (
+              <div className="space-y-5">
+                <div className="grid gap-4 lg:grid-cols-[220px_minmax(0,1fr)]">
+                  <div className="rounded-2xl border border-gray-200 bg-slate-50 p-4">
+                    <label className="mb-2 block text-sm font-semibold text-slate-700">Language</label>
+                    <select
+                      value={currentCodeAnswer.language}
+                      onChange={(event) => {
+                        if (question.language !== 'any') return;
+                        updateCodeAnswer(question.id, 'language', event.target.value);
+                      }}
+                      disabled={question.language !== 'any'}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm text-slate-800 outline-none disabled:cursor-not-allowed disabled:bg-slate-100"
+                    >
+                      {(question.language === 'any' ? CODE_LANGUAGE_OPTIONS : CODE_LANGUAGE_OPTIONS.filter((item) => item.value === question.language)).map((item) => (
+                        <option key={item.value} value={item.value}>{item.label}</option>
+                      ))}
+                    </select>
+                    {question.language !== 'any' ? (
+                      <p className="mt-2 text-xs text-slate-500">This question is locked to {CODE_LANGUAGE_OPTIONS.find((item) => item.value === question.language)?.label || question.language}.</p>
+                    ) : (
+                      <p className="mt-2 text-xs text-slate-500">Students may choose any language for this question.</p>
+                    )}
+                  </div>
+
+                  <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white p-3">
+                    <Editor
+                      height="320px"
+                      language={currentCodeAnswer.language}
+                      theme="vs-light"
+                      value={currentCodeAnswer.source}
+                      onChange={(value) => updateCodeAnswer(question.id, 'source', value || '')}
+                      options={{ minimap: { enabled: false }, fontSize: 14, scrollBeyondLastLine: false, wordWrap: 'on' }}
+                    />
+                  </div>
+                </div>
+
+                {(question.constraints || question.sampleInput || question.sampleOutput || question.testCases.length > 0) && (
+                  <div className="grid gap-4 lg:grid-cols-2">
+                    {question.constraints && (
+                      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                        <p className="text-sm font-semibold text-slate-900">Constraints</p>
+                        <pre className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-700">{question.constraints}</pre>
+                      </div>
+                    )}
+                    {(question.testCases[0]?.input || question.testCases[0]?.expected || question.sampleInput || question.sampleOutput) && (
+                      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                        <p className="text-sm font-semibold text-slate-900">Sample Case</p>
+                        <div className="mt-2 grid gap-3 text-sm text-slate-700">
+                          <div>
+                            <p className="font-semibold text-slate-600">Input</p>
+                            <pre className="mt-1 whitespace-pre-wrap rounded-xl bg-white p-3">{question.testCases[0]?.input || question.sampleInput || ''}</pre>
+                          </div>
+                          <div>
+                            <p className="font-semibold text-slate-600">Expected Output</p>
+                            <pre className="mt-1 whitespace-pre-wrap rounded-xl bg-white p-3">{question.testCases[0]?.expected || question.sampleOutput || ''}</pre>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    onClick={handleRunCode}
+                    className="rounded-2xl border border-cyan-200 bg-cyan-50 px-5 py-3 text-sm font-semibold text-cyan-700 hover:bg-cyan-100"
+                  >
+                    Run code
+                  </button>
+                  <button
+                    onClick={() => setAnswers((current) => ({
+                      ...current,
+                      [question.id]: {
+                        ...(typeof current[question.id] === 'object' ? current[question.id] : { language: currentCodeAnswer.language, source: '' }),
+                        source: '',
+                      },
+                    }))}
+                    className="rounded-2xl border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                  >
+                    Clear code
+                  </button>
+                </div>
+
+                {runResults[question.id] && (
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm">
+                    <p className="font-semibold text-slate-900">Execution result</p>
+                    <p className="mt-2 whitespace-pre-wrap text-slate-700">{runResults[question.id].stdout || runResults[question.id].stderr || 'No output'}</p>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           <div className="rounded-3xl border border-student-100/50 bg-white/70 p-6 shadow-2xl backdrop-blur-sm">
@@ -433,7 +648,7 @@ const ExamDashboard = () => {
             <div className="flex flex-col gap-3 sm:flex-row">
               <button
                 onClick={handleSaveAnswer}
-                disabled={!answers[question.id]}
+                disabled={question.type === 'mcq' ? !answers[question.id] : question.type === 'descriptive' ? !String(answers[question.id] || '').trim() : !getCodeAnswer(question).source.trim()}
                 className="flex items-center justify-center gap-3 rounded-2xl border border-student-300 bg-white px-6 py-4 text-lg font-semibold text-student-700 shadow-sm transition-all duration-300 hover:bg-student-50 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
