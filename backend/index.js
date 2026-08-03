@@ -25,6 +25,7 @@ app.use('/api/departments', require('./routes/department'));
 app.use('/api/department', require('./routes/department'));
 app.use('/api/department/dashboard', require('./routes/departmentDashboard'));
 app.use('/api/exams', require('./routes/exams'));
+app.use('/api/run', require('./routes/run'));
 app.use('/api/question-banks', require('./routes/questionBanks'));
 app.use('/api/user', require('./routes/userdata'));
 app.use('/api/student/dashboard', require('./routes/studentDashboard'));

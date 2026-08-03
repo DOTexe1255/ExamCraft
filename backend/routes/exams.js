@@ -3,8 +3,270 @@ const connectToMySQL = require('../db');
 const authMiddleware = require('./authMiddleware');
 
 const router = express.Router();
+const tableColumnsCache = new Map();
+
+const getTableColumns = async (conn, tableName) => {
+  if (tableColumnsCache.has(tableName)) {
+    return tableColumnsCache.get(tableName);
+  }
+
+  const [rows] = await conn.execute(
+    `SELECT COLUMN_NAME
+     FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?`,
+    [tableName]
+  );
+
+  const columns = new Set(rows.map((row) => row.COLUMN_NAME));
+  tableColumnsCache.set(tableName, columns);
+  return columns;
+};
 
 const parseBool = (value) => value === true || value === 'true' || value === 1 || value === '1';
+
+const parseJsonArray = (value) => {
+  if (Array.isArray(value)) {
+    return value;
+  }
+
+  if (!value) {
+    return [];
+  }
+
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (error) {
+      return [];
+    }
+  }
+
+  return [];
+};
+
+const extractInstructionNumber = (instructions, label) => {
+  const match = String(instructions || '').match(new RegExp(`${label}:\s*([0-9]+)`, 'i'));
+  return match ? Number(match[1]) : null;
+};
+
+const buildInstructions = ({ questionCount, examType, examMode, subjectLabel, domainLabel, passingMarks, endDate, sections, questionBank }) => [
+  questionCount ? `Question count: ${questionCount}` : null,
+  examType ? `Exam type: ${examType}` : null,
+  examMode ? `Exam mode: ${examMode}` : null,
+  subjectLabel ? `Subject: ${subjectLabel}` : null,
+  domainLabel ? `Domain: ${domainLabel}` : null,
+  passingMarks ? `Passing marks: ${passingMarks}` : null,
+  endDate ? `End date: ${endDate}` : null,
+  sections.length ? `Sections: ${JSON.stringify(sections)}` : null,
+  questionBank.length ? `Question bank: ${JSON.stringify(questionBank)}` : null,
+].filter(Boolean).join('\n');
+
+const syncQuestionBankGroup = async (conn, {
+  examId,
+  instituteId,
+  departmentId,
+  title,
+  description,
+  questionBank,
+  sections,
+  subjectLabel,
+  domainLabel,
+  examMode,
+  createdBy,
+}) => {
+  const groupColumns = await getTableColumns(conn, 'question_bank_groups');
+  const [existingRows] = await conn.execute(
+    'SELECT question_bank_group_id FROM question_bank_groups WHERE source_exam_id = ? LIMIT 1',
+    [examId]
+  );
+
+  const groupName = `${title.trim()} - Auto Bank`;
+  const sectionJson = sections.length ? JSON.stringify(sections) : null;
+  const questionJson = JSON.stringify(questionBank || []);
+  const questionCount = Array.isArray(questionBank) ? questionBank.length : 0;
+  const includeSubjectLabel = groupColumns.has('subject_label');
+  const includeDomainLabel = groupColumns.has('domain_label');
+  const includeExamMode = groupColumns.has('exam_mode');
+  const includeSectionsJson = groupColumns.has('sections_json');
+  const insertColumns = ['institute_id', 'department_id', 'group_name', 'description', 'questions_json', 'question_count', 'created_by'];
+  const insertValues = [instituteId, departmentId, groupName, description ? String(description).trim() : null, questionJson, questionCount, createdBy];
+
+  if (includeSubjectLabel) {
+    insertColumns.push('subject_label');
+    insertValues.push(subjectLabel ? String(subjectLabel).trim() : null);
+  }
+
+  if (includeDomainLabel) {
+    insertColumns.push('domain_label');
+    insertValues.push(domainLabel ? String(domainLabel).trim() : null);
+  }
+
+  insertColumns.push('source_exam_id', 'source_type');
+  insertValues.push(examId, 'exam');
+
+  if (includeExamMode) {
+    insertColumns.push('exam_mode');
+    insertValues.push(examMode);
+  }
+
+  if (includeSectionsJson) {
+    insertColumns.push('sections_json');
+    insertValues.push(sectionJson);
+  }
+
+  if (existingRows.length > 0) {
+    const updateParts = [
+      'group_name = ?',
+      'description = ?',
+      'questions_json = ?',
+      'question_count = ?',
+    ];
+    const updateValues = [
+      groupName,
+      description ? String(description).trim() : null,
+      questionJson,
+      questionCount,
+    ];
+
+    if (includeSubjectLabel) {
+      updateParts.push('subject_label = ?');
+      updateValues.push(subjectLabel ? String(subjectLabel).trim() : null);
+    }
+
+    if (includeDomainLabel) {
+      updateParts.push('domain_label = ?');
+      updateValues.push(domainLabel ? String(domainLabel).trim() : null);
+    }
+
+    if (includeExamMode) {
+      updateParts.push('exam_mode = ?');
+      updateValues.push(examMode);
+    }
+
+    if (includeSectionsJson) {
+      updateParts.push('sections_json = ?');
+      updateValues.push(sectionJson);
+    }
+
+    updateParts.push('updated_at = CURRENT_TIMESTAMP');
+    updateValues.push(existingRows[0].question_bank_group_id);
+
+    await conn.execute(
+      `UPDATE question_bank_groups
+       SET ${updateParts.join(', ')}
+       WHERE question_bank_group_id = ?`,
+      updateValues
+    );
+
+    return existingRows[0].question_bank_group_id;
+  }
+
+  if (!questionCount && !sectionJson) {
+    return null;
+  }
+
+  const [result] = await conn.execute(
+    `INSERT INTO question_bank_groups (${insertColumns.join(', ')}) VALUES (${insertColumns.map(() => '?').join(', ')})`,
+    insertValues
+  );
+
+  return result.insertId;
+};
+
+const syncExamAssignments = async (conn, examId, studentIds) => {
+  if (!Array.isArray(studentIds)) {
+    return;
+  }
+
+  const uniqueStudentIds = [...new Set(studentIds.map((value) => Number(value)).filter((value) => Number.isFinite(value) && value > 0))];
+
+  await conn.execute('DELETE FROM exam_assignments WHERE exam_id = ?', [examId]);
+
+  for (const studentId of uniqueStudentIds) {
+    await conn.execute('INSERT INTO exam_assignments (exam_id, student_id) VALUES (?, ?)', [examId, studentId]);
+  }
+};
+
+const fetchExamDetails = async (conn, examId, user) => {
+  const examColumns = await getTableColumns(conn, 'exams');
+  const selectColumns = [
+    'exam_id',
+    'institute_id',
+    'department_id',
+    'title',
+    'description',
+    'start_datetime',
+    'duration_minutes',
+    'total_marks',
+    'max_attempts',
+    'status',
+    'instructions',
+    'created_by',
+    'created_at',
+  ];
+
+  if (examColumns.has('exam_mode')) selectColumns.push('exam_mode');
+  if (examColumns.has('subject_label')) selectColumns.push('subject_label');
+  if (examColumns.has('domain_label')) selectColumns.push('domain_label');
+  if (examColumns.has('sections_json')) selectColumns.push('sections_json');
+
+  const [examRows] = await conn.execute(
+    `SELECT ${selectColumns.join(', ')} FROM exams WHERE exam_id = ?`,
+    [examId]
+  );
+
+  const exam = examRows[0];
+  if (!exam) {
+    return null;
+  }
+
+  if (user.role === 'department' && Number(exam.department_id) !== Number(user.department_id)) {
+    return null;
+  }
+
+  if (Number(exam.institute_id) !== Number(user.institute_id)) {
+    return null;
+  }
+
+  const [groupRows] = await conn.execute(
+    `SELECT question_bank_group_id, questions_json, sections_json, question_count, subject_label, domain_label, exam_mode
+     FROM question_bank_groups
+     WHERE source_exam_id = ?
+     ORDER BY updated_at DESC
+     LIMIT 1`,
+    [examId]
+  );
+
+  const [assignmentRows] = await conn.execute(
+    `SELECT ass.student_id, u.first_name, u.last_name, u.email
+     FROM exam_assignments ass
+     JOIN users u ON u.user_id = ass.student_id
+     WHERE ass.exam_id = ?
+     ORDER BY u.first_name, u.last_name`,
+    [examId]
+  );
+
+  const group = groupRows[0] || {};
+  const sections = parseJsonArray(group.sections_json || exam.sections_json);
+  const questionBank = parseJsonArray(group.questions_json);
+
+  return {
+    ...exam,
+    exam_mode: exam.exam_mode || 'online',
+    subject_label: exam.subject_label || null,
+    domain_label: exam.domain_label || null,
+    sections_json: exam.sections_json || null,
+    passing_marks: extractInstructionNumber(exam.instructions, 'Passing marks'),
+    question_bank_group_id: group.question_bank_group_id || null,
+    sections,
+    question_bank: questionBank,
+    assigned_student_ids: assignmentRows.map((row) => Number(row.student_id)),
+    assigned_students: assignmentRows,
+  };
+};
+
+const resolveExamMode = (value) => (value === 'offline' ? 'offline' : 'online');
 
 const toUtcDateFromLocalInput = (value, timezoneOffsetMinutes) => {
   const [datePart, timePart = '00:00'] = String(value || '').split('T');
@@ -78,6 +340,7 @@ router.post('/', authMiddleware, async (req, res) => {
     subject_label,
     domain_label,
     sections,
+    student_ids,
   } = req.body;
 
   if (!title || !description || !duration || !total_marks || !start_date) {
@@ -108,76 +371,84 @@ router.post('/', authMiddleware, async (req, res) => {
 
   const structuredQuestionBank = Array.isArray(question_bank) ? question_bank : [];
   const structuredSections = normalizeJsonArray(sections);
-  const resolvedExamMode = exam_mode === 'offline' ? 'offline' : 'online';
-
-  const instructions = [
-    question_count ? `Question count: ${question_count}` : null,
-    exam_type ? `Exam type: ${exam_type}` : null,
-    resolvedExamMode ? `Exam mode: ${resolvedExamMode}` : null,
-    subject_label ? `Subject: ${subject_label}` : null,
-    domain_label ? `Domain: ${domain_label}` : null,
-    passing_marks ? `Passing marks: ${passing_marks}` : null,
-    end_date ? `End date: ${end_date}` : null,
-    structuredSections.length ? `Sections: ${JSON.stringify(structuredSections)}` : null,
-    structuredQuestionBank.length ? `Question bank: ${JSON.stringify(structuredQuestionBank)}` : null,
-  ]
-    .filter(Boolean)
-    .join('\n');
+  const resolvedExamMode = resolveExamMode(exam_mode);
+  const instructions = buildInstructions({
+    questionCount: question_count || structuredQuestionBank.length,
+    examType: exam_type,
+    examMode: resolvedExamMode,
+    subjectLabel: subject_label,
+    domainLabel: domain_label,
+    passingMarks: passing_marks,
+    endDate: end_date,
+    sections: structuredSections,
+    questionBank: structuredQuestionBank,
+  });
 
   let conn;
 
   try {
     conn = await connectToMySQL();
+    const examColumns = await getTableColumns(conn, 'exams');
+    const insertColumns = ['institute_id', 'department_id', 'title', 'description', 'start_datetime', 'duration_minutes', 'total_marks', 'max_attempts', 'status', 'seb_required', 'seb_quit_password', 'instructions', 'created_by'];
+    const insertValues = [
+      resolvedInstituteId,
+      resolvedDepartmentId,
+      title.trim(),
+      description.trim(),
+      toMysqlUtcString(startDatetime),
+      Number(duration),
+      Number(total_marks),
+      1,
+      status,
+      true,
+      null,
+      instructions || null,
+      req.user.user_id,
+    ];
+
+    if (examColumns.has('exam_mode')) {
+      insertColumns.push('exam_mode');
+      insertValues.push(resolvedExamMode);
+    }
+
+    if (examColumns.has('subject_label')) {
+      insertColumns.push('subject_label');
+      insertValues.push(subject_label ? String(subject_label).trim() : null);
+    }
+
+    if (examColumns.has('domain_label')) {
+      insertColumns.push('domain_label');
+      insertValues.push(domain_label ? String(domain_label).trim() : null);
+    }
+
+    if (examColumns.has('sections_json')) {
+      insertColumns.push('sections_json');
+      insertValues.push(structuredSections.length ? JSON.stringify(structuredSections) : null);
+    }
 
     const [result] = await conn.execute(
-      `INSERT INTO exams
-        (institute_id, department_id, title, description, start_datetime, duration_minutes,
-         total_marks, max_attempts, status, seb_required, seb_quit_password, instructions, created_by,
-         exam_mode, subject_label, domain_label, sections_json)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        resolvedInstituteId,
-        resolvedDepartmentId,
-        title.trim(),
-        description.trim(),
-        toMysqlUtcString(startDatetime),
-        Number(duration),
-        Number(total_marks),
-        1,
-        status,
-        true,
-        null,
-        instructions || null,
-        req.user.user_id,
-        resolvedExamMode,
-        subject_label ? String(subject_label).trim() : null,
-        domain_label ? String(domain_label).trim() : null,
-        structuredSections.length ? JSON.stringify(structuredSections) : null,
-      ]
+      `INSERT INTO exams (${insertColumns.join(', ')}) VALUES (${insertColumns.map(() => '?').join(', ')})`,
+      insertValues
     );
 
     if (structuredQuestionBank.length) {
-      await conn.execute(
-        `INSERT INTO question_bank_groups
-          (institute_id, department_id, group_name, description, questions_json, question_count,
-           created_by, subject_label, domain_label, source_exam_id, source_type, exam_mode, sections_json)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          resolvedInstituteId,
-          resolvedDepartmentId,
-          `${title.trim()} - Auto Bank`,
-          description.trim(),
-          JSON.stringify(structuredQuestionBank),
-          structuredQuestionBank.length,
-          req.user.user_id,
-          subject_label ? String(subject_label).trim() : null,
-          domain_label ? String(domain_label).trim() : null,
-          result.insertId,
-          'exam',
-          resolvedExamMode,
-          structuredSections.length ? JSON.stringify(structuredSections) : null,
-        ]
-      );
+      await syncQuestionBankGroup(conn, {
+        examId: result.insertId,
+        instituteId: resolvedInstituteId,
+        departmentId: resolvedDepartmentId,
+        title,
+        description,
+        questionBank: structuredQuestionBank,
+        sections: structuredSections,
+        subjectLabel: subject_label,
+        domainLabel: domain_label,
+        examMode: resolvedExamMode,
+        createdBy: req.user.user_id,
+      });
+    }
+
+    if (Array.isArray(student_ids)) {
+      await syncExamAssignments(conn, result.insertId, student_ids);
     }
 
     return res.status(201).json({
@@ -209,6 +480,31 @@ router.post('/', authMiddleware, async (req, res) => {
   }
 });
 
+router.get('/:examId', authMiddleware, async (req, res) => {
+  const examId = Number(req.params.examId);
+  if (!examId) {
+    return res.status(400).json({ message: 'Invalid exam id' });
+  }
+
+  let conn;
+
+  try {
+    conn = await connectToMySQL();
+    const exam = await fetchExamDetails(conn, examId, req.user);
+
+    if (!exam) {
+      return res.status(404).json({ message: 'Exam not found' });
+    }
+
+    return res.json({ exam });
+  } catch (error) {
+    console.error('Load exam details error:', error);
+    return res.status(500).json({ message: 'Database error', error: error.message });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
 router.patch('/:examId', authMiddleware, async (req, res) => {
   const {
     title,
@@ -220,6 +516,13 @@ router.patch('/:examId', authMiddleware, async (req, res) => {
     domain_label,
     sections,
     status,
+    duration,
+    total_marks,
+    passing_marks,
+    end_date,
+    question_bank,
+    student_ids,
+    question_count,
   } = req.body;
 
   const examId = Number(req.params.examId);
@@ -232,21 +535,52 @@ router.patch('/:examId', authMiddleware, async (req, res) => {
   try {
     conn = await connectToMySQL();
 
+    const currentExam = await fetchExamDetails(conn, examId, req.user);
+    if (!currentExam) {
+      return res.status(404).json({ message: 'Exam not found' });
+    }
+    const examColumns = await getTableColumns(conn, 'exams');
+
+    const normalizedSections = Array.isArray(sections) ? sections : currentExam.sections || [];
+    const normalizedQuestionBank = Array.isArray(question_bank) ? question_bank : currentExam.question_bank || [];
+    const resolvedExamMode = resolveExamMode(exam_mode || currentExam.exam_mode);
+    const resolvedTitle = typeof title === 'string' ? title.trim() : currentExam.title;
+    const resolvedDescription = typeof description === 'string' ? description.trim() : currentExam.description;
+    const resolvedStartDate = typeof start_date === 'string' && start_date.trim() ? start_date : null;
+    const resolvedDuration = Number(duration || currentExam.duration_minutes);
+    const resolvedTotalMarks = Number(total_marks || currentExam.total_marks);
+    const resolvedPassingMarks = Number.isFinite(Number(passing_marks)) ? Number(passing_marks) : currentExam.passing_marks;
+    const resolvedSubjectLabel = typeof subject_label === 'string' ? subject_label.trim() : currentExam.subject_label;
+    const resolvedDomainLabel = typeof domain_label === 'string' ? domain_label.trim() : currentExam.domain_label;
+    const resolvedStatus = typeof status === 'string' && ['draft', 'scheduled', 'active', 'completed', 'cancelled'].includes(status) ? status : null;
+
+    const nextInstructions = buildInstructions({
+      questionCount: question_count || normalizedQuestionBank.length,
+      examType: null,
+      examMode: resolvedExamMode,
+      subjectLabel: resolvedSubjectLabel,
+      domainLabel: resolvedDomainLabel,
+      passingMarks: resolvedPassingMarks,
+      endDate: end_date,
+      sections: normalizedSections,
+      questionBank: normalizedQuestionBank,
+    });
+
     const updates = [];
     const params = [];
 
-    if (typeof title === 'string') {
+    if (resolvedTitle) {
       updates.push('title = ?');
-      params.push(title.trim());
+      params.push(resolvedTitle);
     }
 
-    if (typeof description === 'string') {
+    if (resolvedDescription) {
       updates.push('description = ?');
-      params.push(description.trim());
+      params.push(resolvedDescription);
     }
 
-    if (typeof start_date === 'string' && start_date.trim()) {
-      const rescheduledDate = toUtcDateFromLocalInput(start_date, timezone_offset_minutes);
+    if (resolvedStartDate) {
+      const rescheduledDate = toUtcDateFromLocalInput(resolvedStartDate, timezone_offset_minutes);
       if (!rescheduledDate || Number.isNaN(rescheduledDate.getTime())) {
         return res.status(400).json({ message: 'Invalid start_date' });
       }
@@ -260,30 +594,43 @@ router.patch('/:examId', authMiddleware, async (req, res) => {
       }
     }
 
-    if (typeof exam_mode === 'string') {
+    if (Number.isFinite(resolvedDuration) && resolvedDuration > 0) {
+      updates.push('duration_minutes = ?');
+      params.push(resolvedDuration);
+    }
+
+    if (Number.isFinite(resolvedTotalMarks) && resolvedTotalMarks > 0) {
+      updates.push('total_marks = ?');
+      params.push(resolvedTotalMarks);
+    }
+
+    if (examColumns.has('exam_mode') && resolvedExamMode) {
       updates.push('exam_mode = ?');
-      params.push(exam_mode === 'offline' ? 'offline' : 'online');
+      params.push(resolvedExamMode);
     }
 
-    if (typeof subject_label === 'string') {
+    if (examColumns.has('subject_label') && typeof resolvedSubjectLabel === 'string') {
       updates.push('subject_label = ?');
-      params.push(subject_label.trim() || null);
+      params.push(resolvedSubjectLabel || null);
     }
 
-    if (typeof domain_label === 'string') {
+    if (examColumns.has('domain_label') && typeof resolvedDomainLabel === 'string') {
       updates.push('domain_label = ?');
-      params.push(domain_label.trim() || null);
+      params.push(resolvedDomainLabel || null);
     }
 
-    if (Array.isArray(sections)) {
+    if (examColumns.has('sections_json') && (Array.isArray(sections) || currentExam.sections.length)) {
       updates.push('sections_json = ?');
-      params.push(sections.length ? JSON.stringify(sections) : null);
+      params.push(normalizedSections.length ? JSON.stringify(normalizedSections) : null);
     }
 
-    if (typeof status === 'string' && ['draft', 'scheduled', 'active', 'completed', 'cancelled'].includes(status)) {
+    if (resolvedStatus) {
       updates.push('status = ?');
-      params.push(status);
+      params.push(resolvedStatus);
     }
+
+    updates.push('instructions = ?');
+    params.push(nextInstructions || null);
 
     if (!updates.length) {
       return res.status(400).json({ message: 'No update fields provided' });
@@ -293,18 +640,30 @@ router.patch('/:examId', authMiddleware, async (req, res) => {
 
     await conn.execute(`UPDATE exams SET ${updates.join(', ')} WHERE exam_id = ?`, params);
 
-    const [rows] = await conn.execute(
-      'SELECT exam_id, institute_id, department_id, title, description, start_datetime, duration_minutes, total_marks, max_attempts, status, exam_mode, subject_label, domain_label, sections_json, instructions, created_by, created_at FROM exams WHERE exam_id = ?',
-      [examId]
-    );
+    await syncQuestionBankGroup(conn, {
+      examId,
+      instituteId: currentExam.institute_id,
+      departmentId: currentExam.department_id,
+      title: resolvedTitle,
+      description: resolvedDescription,
+      questionBank: normalizedQuestionBank,
+      sections: normalizedSections,
+      subjectLabel: resolvedSubjectLabel,
+      domainLabel: resolvedDomainLabel,
+      examMode: resolvedExamMode,
+      createdBy: req.user.user_id,
+    });
 
-    const exam = rows[0];
+    if (Array.isArray(student_ids)) {
+      await syncExamAssignments(conn, examId, student_ids);
+    }
+
+    const exam = await fetchExamDetails(conn, examId, req.user);
 
     return res.json({
       message: 'Exam updated successfully',
       exam: {
         ...exam,
-        sections: normalizeJsonArray(exam.sections_json),
       },
     });
   } catch (error) {
