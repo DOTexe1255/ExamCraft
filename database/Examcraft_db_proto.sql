@@ -1,4 +1,3 @@
--- Full Normalized MySQL Database for Exam Craft (3NF)
 -- Create database
 CREATE DATABASE IF NOT EXISTS examcraft;
 USE examcraft;
@@ -150,13 +149,31 @@ CREATE TABLE IF NOT EXISTS exam_attempts (
 -- 10. Student Answers (normalized per question)
 CREATE TABLE IF NOT EXISTS student_answers (
     answer_id INT PRIMARY KEY AUTO_INCREMENT,
+
     attempt_id INT NOT NULL,
     question_id INT NOT NULL,
-    selected_answer JSON,  -- Student response
+
+    selected_answer JSON,
+
     marks_obtained DECIMAL(5,2) DEFAULT 0,
-    time_spent INT DEFAULT 0,  -- seconds
-    FOREIGN KEY (attempt_id) REFERENCES exam_attempts(attempt_id) ON DELETE CASCADE,
-    FOREIGN KEY (question_id) REFERENCES questions(question_id),
+    manual_marks DECIMAL(5,2) DEFAULT NULL,
+
+    reviewer_comment TEXT,
+    review_status ENUM('PENDING','CHECKED') DEFAULT 'PENDING',
+
+    marked_for_review BOOLEAN DEFAULT FALSE,
+    answered_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    time_spent INT DEFAULT 0,
+
+    FOREIGN KEY (attempt_id)
+        REFERENCES exam_attempts(attempt_id)
+        ON DELETE CASCADE,
+
+    FOREIGN KEY (question_id)
+        REFERENCES questions(question_id),
+
+    UNIQUE KEY unique_attempt_question (attempt_id, question_id),
+
     INDEX idx_attempt (attempt_id),
     INDEX idx_question (question_id)
 );
@@ -517,3 +534,95 @@ JOIN exams e ON ea.exam_id = e.exam_id;
 -- Admin: admin@techinst.com / password123
 -- CS Head: cshead@techinst.com / password123  
 -- Students: john.doe@techinst.com / password123
+
+
+-- ==============================
+-- Exam Module V2 Upgrade
+-- ==============================
+
+ALTER TABLE exams
+ADD COLUMN end_datetime DATETIME NULL AFTER start_datetime,
+ADD COLUMN allow_late_join BOOLEAN DEFAULT TRUE AFTER end_datetime,
+ADD COLUMN late_join_until DATETIME NULL AFTER allow_late_join,
+ADD COLUMN exam_status ENUM(
+'SCHEDULED',
+'LIVE',
+'ENDED',
+'CANCELLED'
+) DEFAULT 'SCHEDULED' AFTER late_join_until;
+
+UPDATE exams
+SET end_datetime = DATE_ADD(
+    start_datetime,
+    INTERVAL duration_minutes MINUTE
+)
+WHERE end_datetime IS NULL;
+
+ALTER TABLE exam_assignments
+ADD COLUMN IF NOT EXISTS assignment_status ENUM(
+'ENROLLED',
+'STARTED',
+'SUBMITTED',
+'AUTO_SUBMITTED',
+'ABSENT'
+) DEFAULT 'ENROLLED';
+
+ALTER TABLE exam_attempts
+ADD COLUMN IF NOT EXISTS remaining_seconds INT DEFAULT NULL,
+ADD COLUMN IF NOT EXISTS auto_submitted BOOLEAN DEFAULT FALSE,
+ADD COLUMN IF NOT EXISTS last_activity DATETIME NULL,
+ADD COLUMN IF NOT EXISTS current_question INT DEFAULT 1,
+ADD COLUMN IF NOT EXISTS tab_switches INT DEFAULT 0,
+ADD COLUMN IF NOT EXISTS fullscreen_exit_count INT DEFAULT 0,
+ADD COLUMN IF NOT EXISTS review_status ENUM(
+'PENDING',
+'UNDER_REVIEW',
+'COMPLETED'
+) DEFAULT 'PENDING';
+
+ALTER TABLE student_answers
+ADD COLUMN IF NOT EXISTS manual_marks DECIMAL(5,2) DEFAULT NULL,
+ADD COLUMN IF NOT EXISTS reviewer_comment TEXT NULL,
+ADD COLUMN IF NOT EXISTS review_status ENUM(
+'PENDING',
+'CHECKED'
+) DEFAULT 'PENDING';
+
+-- ==========================================================
+-- ExamCraft V3 (Attempt Table Upgrade)
+-- ==========================================================
+
+ALTER TABLE exam_attempts
+DROP INDEX IF EXISTS unique_student_exam;
+
+ALTER TABLE exam_attempts
+ADD COLUMN IF NOT EXISTS remaining_seconds INT DEFAULT NULL AFTER duration_taken,
+ADD COLUMN IF NOT EXISTS current_question INT DEFAULT 1 AFTER remaining_seconds,
+ADD COLUMN IF NOT EXISTS auto_submitted BOOLEAN DEFAULT FALSE AFTER is_submitted,
+ADD COLUMN IF NOT EXISTS review_status ENUM(
+'PENDING',
+'UNDER_REVIEW',
+'COMPLETED'
+) DEFAULT 'PENDING' AFTER total_marks;
+
+-- Prevent multiple attempts for same student & exam
+ALTER TABLE exam_attempts
+ADD CONSTRAINT unique_student_exam
+UNIQUE(student_id, exam_id);
+
+-- Rename legacy columns manually if required:
+-- completed_at      -> submitted_at (optional)
+-- total_score       -> final_score (optional)
+-- last_activity_at  -> last_activity (optional)
+
+-- ==========================================================
+-- ExamCraft V4 - Advanced Security Settings
+-- ==========================================================
+
+ALTER TABLE exam_proctoring_settings
+ADD COLUMN block_cut BOOLEAN DEFAULT TRUE AFTER block_copy_paste,
+ADD COLUMN block_devtools BOOLEAN DEFAULT TRUE AFTER block_right_click,
+ADD COLUMN block_print BOOLEAN DEFAULT TRUE AFTER block_devtools,
+ADD COLUMN block_text_selection BOOLEAN DEFAULT TRUE AFTER block_print,
+ADD COLUMN allow_paste_in_coding BOOLEAN DEFAULT FALSE AFTER block_text_selection,
+ADD COLUMN auto_submit_on_violation BOOLEAN DEFAULT TRUE AFTER max_idle_warnings;

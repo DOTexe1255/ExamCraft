@@ -74,6 +74,23 @@ const CreateExamModal = ({ isOpen, onClose, onSubmit, instituteId, departmentId 
     subject_label: '',
     domain_label: '',
     is_active: true,
+    security_settings: {
+      block_copy_paste: true,
+      block_cut: true,
+      block_right_click: true,
+      block_devtools: true,
+      block_print: true,
+      block_text_selection: true,
+      allow_paste_in_coding: false,
+      detect_tab_switch: true,
+      detect_window_blur: true,
+      detect_fullscreen_exit: true,
+      inactivity_timeout_seconds: 120,
+      max_idle_warnings: 3,
+      auto_submit_on_violation: true,
+      track_mouse_movement: true,
+      track_keyboard_activity: true,
+    },
   });
   const [questionBank, setQuestionBank] = useState([]);
   const [sections, setSections] = useState([createSection()]);
@@ -96,6 +113,23 @@ const CreateExamModal = ({ isOpen, onClose, onSubmit, instituteId, departmentId 
         subject_label: '',
         domain_label: '',
         is_active: true,
+        security_settings: {
+          block_copy_paste: true,
+          block_cut: true,
+          block_right_click: true,
+          block_devtools: true,
+          block_print: true,
+          block_text_selection: true,
+          allow_paste_in_coding: false,
+          detect_tab_switch: true,
+          detect_window_blur: true,
+          detect_fullscreen_exit: true,
+          inactivity_timeout_seconds: 120,
+          max_idle_warnings: 3,
+          auto_submit_on_violation: true,
+          track_mouse_movement: true,
+          track_keyboard_activity: true,
+        },
       });
       setQuestionBank([]);
       setSections([createSection()]);
@@ -315,6 +349,7 @@ const CreateExamModal = ({ isOpen, onClose, onSubmit, instituteId, departmentId 
         question_bank: normalizedQuestionBank,
         institute_id: Number(instituteId),
         department_id: Number(departmentId),
+        security_settings: formData.security_settings,
       });
 
       onClose();
@@ -368,9 +403,8 @@ const CreateExamModal = ({ isOpen, onClose, onSubmit, instituteId, departmentId 
                 value={formData.title}
                 onChange={handleInputChange}
                 required
-                className={`w-full rounded-xl border px-4 py-3 text-sm transition-all duration-200 focus:ring-2 focus:ring-teacher-500 ${
-                  errors.title ? 'border-red-300 focus:border-red-500 focus:ring-red-500' : 'border-gray-200 focus:border-teacher-500'
-                }`}
+                className={`w-full rounded-xl border px-4 py-3 text-sm transition-all duration-200 focus:ring-2 focus:ring-teacher-500 ${errors.title ? 'border-red-300 focus:border-red-500 focus:ring-red-500' : 'border-gray-200 focus:border-teacher-500'
+                  }`}
                 placeholder="e.g., Midterm Exam - Data Structures"
               />
               {errors.title && <p className="mt-1 text-sm text-red-600">{errors.title}</p>}
@@ -387,9 +421,8 @@ const CreateExamModal = ({ isOpen, onClose, onSubmit, instituteId, departmentId 
                 value={formData.description}
                 onChange={handleInputChange}
                 required
-                className={`w-full resize-vertical rounded-xl border px-4 py-3 text-sm transition-all duration-200 focus:ring-2 focus:ring-teacher-500 ${
-                  errors.description ? 'border-red-300 focus:border-red-500 focus:ring-red-500' : 'border-gray-200 focus:border-teacher-500'
-                }`}
+                className={`w-full resize-vertical rounded-xl border px-4 py-3 text-sm transition-all duration-200 focus:ring-2 focus:ring-teacher-500 ${errors.description ? 'border-red-300 focus:border-red-500 focus:ring-red-500' : 'border-gray-200 focus:border-teacher-500'
+                  }`}
                 placeholder="Brief description of exam content and instructions..."
               />
               {errors.description && <p className="mt-1 text-sm text-red-600">{errors.description}</p>}
@@ -563,9 +596,8 @@ const CreateExamModal = ({ isOpen, onClose, onSubmit, instituteId, departmentId 
                               rows={3}
                               value={question.question_text}
                               onChange={(event) => updateQuestion(question.id, 'question_text', event.target.value)}
-                              className={`w-full rounded-xl border px-4 py-3 text-sm focus:border-teacher-500 focus:ring-2 focus:ring-teacher-500 ${
-                                questionErrors.question_text ? 'border-red-300 focus:border-red-500 focus:ring-red-500' : 'border-gray-200'
-                              }`}
+                              className={`w-full rounded-xl border px-4 py-3 text-sm focus:border-teacher-500 focus:ring-2 focus:ring-teacher-500 ${questionErrors.question_text ? 'border-red-300 focus:border-red-500 focus:ring-red-500' : 'border-gray-200'
+                                }`}
                               placeholder="Write the question prompt here..."
                             />
                             {questionErrors.question_text && <p className="mt-1 text-sm text-red-600">{questionErrors.question_text}</p>}
@@ -620,9 +652,8 @@ const CreateExamModal = ({ isOpen, onClose, onSubmit, instituteId, departmentId 
                               <select
                                 value={question.correct_option}
                                 onChange={(event) => updateQuestion(question.id, 'correct_option', Number(event.target.value))}
-                                className={`w-full rounded-xl border px-3 py-3 text-sm focus:border-teacher-500 focus:ring-2 focus:ring-teacher-500 ${
-                                  questionErrors.correct_option ? 'border-red-300 focus:border-red-500 focus:ring-red-500' : 'border-gray-200'
-                                }`}
+                                className={`w-full rounded-xl border px-3 py-3 text-sm focus:border-teacher-500 focus:ring-2 focus:ring-teacher-500 ${questionErrors.correct_option ? 'border-red-300 focus:border-red-500 focus:ring-red-500' : 'border-gray-200'
+                                  }`}
                               >
                                 {question.options.map((option, optionIndex) => (
                                   <option key={`${question.id}-correct-${optionIndex}`} value={optionIndex}>
@@ -643,9 +674,8 @@ const CreateExamModal = ({ isOpen, onClose, onSubmit, instituteId, departmentId 
                               rows={3}
                               value={question.short_answer}
                               onChange={(event) => updateQuestion(question.id, 'short_answer', event.target.value)}
-                              className={`w-full rounded-xl border px-4 py-3 text-sm focus:border-teacher-500 focus:ring-2 focus:ring-teacher-500 ${
-                                questionErrors.short_answer ? 'border-red-300 focus:border-red-500 focus:ring-red-500' : 'border-gray-200'
-                              }`}
+                              className={`w-full rounded-xl border px-4 py-3 text-sm focus:border-teacher-500 focus:ring-2 focus:ring-teacher-500 ${questionErrors.short_answer ? 'border-red-300 focus:border-red-500 focus:ring-red-500' : 'border-gray-200'
+                                }`}
                               placeholder="Enter the expected short answer..."
                             />
                             {questionErrors.short_answer && <p className="mt-1 text-sm text-red-600">{questionErrors.short_answer}</p>}
@@ -660,9 +690,8 @@ const CreateExamModal = ({ isOpen, onClose, onSubmit, instituteId, departmentId 
                                 <select
                                   value={question.language}
                                   onChange={(event) => updateQuestion(question.id, 'language', event.target.value)}
-                                  className={`w-full rounded-xl border px-3 py-3 text-sm focus:border-teacher-500 focus:ring-2 focus:ring-teacher-500 ${
-                                    questionErrors.language ? 'border-red-300 focus:border-red-500 focus:ring-red-500' : 'border-gray-200'
-                                  }`}
+                                  className={`w-full rounded-xl border px-3 py-3 text-sm focus:border-teacher-500 focus:ring-2 focus:ring-teacher-500 ${questionErrors.language ? 'border-red-300 focus:border-red-500 focus:ring-red-500' : 'border-gray-200'
+                                    }`}
                                 >
                                   {CODE_LANGUAGES.map((language) => (
                                     <option key={language.value} value={language.value}>
@@ -672,33 +701,33 @@ const CreateExamModal = ({ isOpen, onClose, onSubmit, instituteId, departmentId 
                                 </select>
                                 <p className="mt-1 text-xs text-slate-500">Any means the student may choose any language at attempt time.</p>
                                 {questionErrors.language && <p className="mt-1 text-sm text-red-600">{questionErrors.language}</p>}
-                            </div>
+                              </div>
 
-                            <div className="grid gap-4 md:grid-cols-2">
-                              <div>
-                                <label className="mb-2 block text-sm font-medium text-gray-700">Sample Input</label>
-                                <textarea
-                                  rows={3}
-                                  value={question.sample_input}
-                                  onChange={(event) => updateQuestion(question.id, 'sample_input', event.target.value)}
-                                  className="w-full rounded-xl border border-gray-200 px-4 py-3 font-mono text-sm focus:border-teacher-500 focus:ring-2 focus:ring-teacher-500"
-                                  placeholder="Optional sample input..."
-                                />
-                              </div>
-                              <div>
-                                <label className="mb-2 block text-sm font-medium text-gray-700">Sample Output</label>
-                                <textarea
-                                  rows={3}
-                                  value={question.sample_output}
-                                  onChange={(event) => updateQuestion(question.id, 'sample_output', event.target.value)}
-                                  className="w-full rounded-xl border border-gray-200 px-4 py-3 font-mono text-sm focus:border-teacher-500 focus:ring-2 focus:ring-teacher-500"
-                                  placeholder="Optional sample output..."
-                                />
+                              <div className="grid gap-4 md:grid-cols-2">
+                                <div>
+                                  <label className="mb-2 block text-sm font-medium text-gray-700">Sample Input</label>
+                                  <textarea
+                                    rows={3}
+                                    value={question.sample_input}
+                                    onChange={(event) => updateQuestion(question.id, 'sample_input', event.target.value)}
+                                    className="w-full rounded-xl border border-gray-200 px-4 py-3 font-mono text-sm focus:border-teacher-500 focus:ring-2 focus:ring-teacher-500"
+                                    placeholder="Optional sample input..."
+                                  />
+                                </div>
+                                <div>
+                                  <label className="mb-2 block text-sm font-medium text-gray-700">Sample Output</label>
+                                  <textarea
+                                    rows={3}
+                                    value={question.sample_output}
+                                    onChange={(event) => updateQuestion(question.id, 'sample_output', event.target.value)}
+                                    className="w-full rounded-xl border border-gray-200 px-4 py-3 font-mono text-sm focus:border-teacher-500 focus:ring-2 focus:ring-teacher-500"
+                                    placeholder="Optional sample output..."
+                                  />
+                                </div>
                               </div>
                             </div>
-                          </div>
                         )}
-                      </div>
+                          </div>
                     </article>
                   );
                 })}
@@ -722,9 +751,8 @@ const CreateExamModal = ({ isOpen, onClose, onSubmit, instituteId, departmentId 
                   onChange={handleInputChange}
                   min={15}
                   max={300}
-                  className={`w-full rounded-xl border px-4 py-3 text-sm transition-all duration-200 focus:ring-2 focus:ring-teacher-500 ${
-                    errors.duration ? 'border-red-300 focus:border-red-500 focus:ring-red-500' : 'border-gray-200 focus:border-teacher-500'
-                  }`}
+                  className={`w-full rounded-xl border px-4 py-3 text-sm transition-all duration-200 focus:ring-2 focus:ring-teacher-500 ${errors.duration ? 'border-red-300 focus:border-red-500 focus:ring-red-500' : 'border-gray-200 focus:border-teacher-500'
+                    }`}
                 />
                 {errors.duration && <p className="mt-1 text-sm text-red-600">{errors.duration}</p>}
               </div>
@@ -761,9 +789,8 @@ const CreateExamModal = ({ isOpen, onClose, onSubmit, instituteId, departmentId 
                   onChange={handleInputChange}
                   min={10}
                   max={1000}
-                  className={`w-full rounded-xl border px-4 py-3 text-sm transition-all duration-200 focus:ring-2 focus:ring-teacher-500 ${
-                    errors.total_marks ? 'border-red-300 focus:border-red-500 focus:ring-red-500' : 'border-gray-200 focus:border-teacher-500'
-                  }`}
+                  className={`w-full rounded-xl border px-4 py-3 text-sm transition-all duration-200 focus:ring-2 focus:ring-teacher-500 ${errors.total_marks ? 'border-red-300 focus:border-red-500 focus:ring-red-500' : 'border-gray-200 focus:border-teacher-500'
+                    }`}
                 />
                 {errors.total_marks && <p className="mt-1 text-sm text-red-600">{errors.total_marks}</p>}
               </div>
@@ -780,9 +807,8 @@ const CreateExamModal = ({ isOpen, onClose, onSubmit, instituteId, departmentId 
                   onChange={handleInputChange}
                   min={0}
                   max={formData.total_marks - 1}
-                  className={`w-full rounded-xl border px-4 py-3 text-sm transition-all duration-200 focus:ring-2 focus:ring-teacher-500 ${
-                    errors.passing_marks ? 'border-red-300 focus:border-red-500 focus:ring-red-500' : 'border-gray-200 focus:border-teacher-500'
-                  }`}
+                  className={`w-full rounded-xl border px-4 py-3 text-sm transition-all duration-200 focus:ring-2 focus:ring-teacher-500 ${errors.passing_marks ? 'border-red-300 focus:border-red-500 focus:ring-red-500' : 'border-gray-200 focus:border-teacher-500'
+                    }`}
                 />
                 {errors.passing_marks && <p className="mt-1 text-sm text-red-600">{errors.passing_marks}</p>}
               </div>
@@ -792,6 +818,143 @@ const CreateExamModal = ({ isOpen, onClose, onSubmit, instituteId, departmentId 
           <section className="space-y-6">
             <div className="border-b border-gray-100 pb-4">
               <h4 className="mb-1 text-lg font-semibold text-gray-900">Schedule & Status</h4>
+              <section className="space-y-6 rounded-2xl border border-slate-100 bg-slate-50/60 p-5">
+
+                <div className="border-b border-slate-200 pb-4">
+                  <h4 className="text-lg font-semibold text-gray-900">
+                    🔒 Security Settings
+                  </h4>
+
+                  <p className="mt-1 text-sm text-slate-500">
+                    Configure exam security and anti-cheating options.
+                  </p>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+
+                  {[
+                    ['block_copy_paste', 'Disable Copy & Paste'],
+                    ['block_cut', 'Disable Cut'],
+                    ['block_right_click', 'Disable Right Click'],
+                    ['block_devtools', 'Disable Developer Tools'],
+                    ['block_print', 'Disable Print'],
+                    ['block_text_selection', 'Disable Text Selection'],
+                    ['detect_tab_switch', 'Detect Tab Switching'],
+                    ['detect_window_blur', 'Detect Window Blur'],
+                    ['detect_fullscreen_exit', 'Detect Fullscreen Exit'],
+                    ['track_mouse_movement', 'Track Mouse Movement'],
+                    ['track_keyboard_activity', 'Track Keyboard Activity'],
+                    ['auto_submit_on_violation', 'Auto Submit After Violations'],
+                  ].map(([key, label]) => (
+
+                    <label
+                      key={key}
+                      className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 hover:bg-slate-50"
+                    >
+
+                      <input
+                        type="checkbox"
+                        checked={formData.security_settings[key]}
+                        onChange={(e) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            security_settings: {
+                              ...prev.security_settings,
+                              [key]: e.target.checked,
+                            },
+                          }))
+                        }
+                        className="h-4 w-4"
+                      />
+
+                      <span className="text-sm font-medium text-slate-700">
+                        {label}
+                      </span>
+
+                    </label>
+
+                  ))}
+
+                </div>
+
+                <div className="grid gap-5 md:grid-cols-2">
+
+                  <div>
+
+                    <label className="mb-2 block text-sm font-medium text-gray-700">
+                      Idle Timeout (seconds)
+                    </label>
+
+                    <input
+                      type="number"
+                      min={30}
+                      max={600}
+                      value={formData.security_settings.inactivity_timeout_seconds}
+                      onChange={(e) =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          security_settings: {
+                            ...prev.security_settings,
+                            inactivity_timeout_seconds: Number(e.target.value),
+                          },
+                        }))
+                      }
+                      className="w-full rounded-xl border border-gray-200 px-4 py-3"
+                    />
+
+                  </div>
+
+                  <div>
+
+                    <label className="mb-2 block text-sm font-medium text-gray-700">
+                      Max Idle Warnings
+                    </label>
+
+                    <input
+                      type="number"
+                      min={1}
+                      max={10}
+                      value={formData.security_settings.max_idle_warnings}
+                      onChange={(e) =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          security_settings: {
+                            ...prev.security_settings,
+                            max_idle_warnings: Number(e.target.value),
+                          },
+                        }))
+                      }
+                      className="w-full rounded-xl border border-gray-200 px-4 py-3"
+                    />
+
+                  </div>
+
+                </div>
+
+                <label className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3">
+
+                  <input
+                    type="checkbox"
+                    checked={formData.security_settings.allow_paste_in_coding}
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        security_settings: {
+                          ...prev.security_settings,
+                          allow_paste_in_coding: e.target.checked,
+                        },
+                      }))
+                    }
+                    className="h-4 w-4"
+                  />
+
+                  <span className="text-sm font-medium text-slate-700">
+                    Allow Paste In Coding Questions
+                  </span>
+
+                </label>
+
+              </section>
             </div>
 
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
@@ -805,9 +968,8 @@ const CreateExamModal = ({ isOpen, onClose, onSubmit, instituteId, departmentId 
                   name="start_date"
                   value={formData.start_date}
                   onChange={handleInputChange}
-                  className={`w-full rounded-xl border px-4 py-3 text-sm transition-all duration-200 focus:ring-2 focus:ring-teacher-500 ${
-                    errors.start_date ? 'border-red-300 focus:border-red-500 focus:ring-red-500' : 'border-gray-200 focus:border-teacher-500'
-                  }`}
+                  className={`w-full rounded-xl border px-4 py-3 text-sm transition-all duration-200 focus:ring-2 focus:ring-teacher-500 ${errors.start_date ? 'border-red-300 focus:border-red-500 focus:ring-red-500' : 'border-gray-200 focus:border-teacher-500'
+                    }`}
                 />
                 {errors.start_date && <p className="mt-1 text-sm text-red-600">{errors.start_date}</p>}
               </div>
@@ -822,9 +984,8 @@ const CreateExamModal = ({ isOpen, onClose, onSubmit, instituteId, departmentId 
                   name="end_date"
                   value={formData.end_date}
                   onChange={handleInputChange}
-                  className={`w-full rounded-xl border px-4 py-3 text-sm transition-all duration-200 focus:ring-2 focus:ring-teacher-500 ${
-                    errors.end_date ? 'border-red-300 focus:border-red-500 focus:ring-red-500' : 'border-gray-200 focus:border-teacher-500'
-                  }`}
+                  className={`w-full rounded-xl border px-4 py-3 text-sm transition-all duration-200 focus:ring-2 focus:ring-teacher-500 ${errors.end_date ? 'border-red-300 focus:border-red-500 focus:ring-red-500' : 'border-gray-200 focus:border-teacher-500'
+                    }`}
                 />
                 {errors.end_date && <p className="mt-1 text-sm text-red-600">{errors.end_date}</p>}
               </div>

@@ -56,4 +56,181 @@ router.patch('/students/:studentId/access', authMiddleware, requireDepartment, a
   } catch (error) { return res.status(500).json({ message: 'Could not update student access', error: error.message }); }
   finally { if (conn) conn.release(); }
 });
+
+router.get('/live-exams', authMiddleware, async (req, res) => {
+
+    let conn;
+
+    try {
+
+        conn = await connectToMySQL();
+
+        const departmentId = req.user.department_id;
+
+        const [rows] = await conn.execute(`
+
+            SELECT
+
+                e.exam_id,
+
+                e.title,
+
+                e.start_datetime,
+
+                e.end_datetime,
+
+                COUNT(DISTINCT ea.student_id) AS enrolled,
+
+                SUM(
+                    CASE
+                        WHEN ea.assignment_status='STARTED'
+                        THEN 1
+                        ELSE 0
+                    END
+                ) AS started,
+
+                SUM(
+                    CASE
+                        WHEN ea.assignment_status='SUBMITTED'
+                        THEN 1
+                        ELSE 0
+                    END
+                ) AS submitted,
+
+                SUM(
+                    CASE
+                        WHEN ea.assignment_status='AUTO_SUBMITTED'
+                        THEN 1
+                        ELSE 0
+                    END
+                ) AS auto_submitted,
+
+                SUM(
+                    CASE
+                        WHEN ea.assignment_status='ENROLLED'
+                        THEN 1
+                        ELSE 0
+                    END
+                ) AS not_started
+
+            FROM exams e
+
+            JOIN exam_assignments ea
+            ON ea.exam_id=e.exam_id
+
+            WHERE e.department_id=?
+
+            GROUP BY e.exam_id
+
+            ORDER BY e.start_datetime DESC
+
+        `,[departmentId]);
+
+        return res.json(rows);
+
+    }
+
+    catch(error){
+
+        return res.status(500).json({
+
+            message:error.message
+
+        });
+
+    }
+
+    finally{
+
+        if(conn) conn.release();
+
+    }
+
+});
+
+router.get('/exams/:examId/live', authMiddleware, async (req, res) => {
+
+    let conn;
+
+    try {
+
+        conn = await connectToMySQL();
+
+        const examId = Number(req.params.examId);
+
+        const [students] = await conn.execute(`
+
+            SELECT
+
+                u.user_id,
+
+                u.full_name,
+
+                u.email,
+
+                ea.assignment_status,
+
+                at.started_at,
+
+                at.completed_at,
+
+                at.current_question,
+
+                at.remaining_seconds,
+
+                at.last_activity_at,
+
+                at.tab_switch_count,
+
+                at.fullscreen_exit_count,
+
+                at.total_score,
+
+                at.is_submitted
+
+            FROM exam_assignments ea
+
+            JOIN users u
+            ON u.user_id = ea.student_id
+
+            LEFT JOIN exam_attempts at
+            ON at.exam_id = ea.exam_id
+            AND at.student_id = ea.student_id
+
+            WHERE ea.exam_id = ?
+
+            ORDER BY u.full_name
+
+        `,[examId]);
+
+        return res.json({
+
+            success:true,
+
+            students
+
+        });
+
+    }
+
+    catch(error){
+
+        return res.status(500).json({
+
+            success:false,
+
+            message:error.message
+
+        });
+
+    }
+
+    finally{
+
+        if(conn)
+            conn.release();
+
+    }
+
+});
 module.exports = router;

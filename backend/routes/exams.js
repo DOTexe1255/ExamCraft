@@ -341,6 +341,7 @@ router.post('/', authMiddleware, async (req, res) => {
     domain_label,
     sections,
     student_ids,
+    security_settings,
   } = req.body;
 
   if (!title || !description || !duration || !total_marks || !start_date) {
@@ -383,6 +384,29 @@ router.post('/', authMiddleware, async (req, res) => {
     sections: structuredSections,
     questionBank: structuredQuestionBank,
   });
+
+  const defaultSecuritySettings = {
+    block_copy_paste: true,
+    block_cut: true,
+    block_right_click: true,
+    block_devtools: true,
+    block_print: true,
+    block_text_selection: true,
+    allow_paste_in_coding: false,
+    detect_tab_switch: true,
+    detect_window_blur: true,
+    detect_fullscreen_exit: true,
+    inactivity_timeout_seconds: 120,
+    max_idle_warnings: 3,
+    auto_submit_on_violation: true,
+    track_mouse_movement: true,
+    track_keyboard_activity: true,
+  };
+
+  const examSecuritySettings = {
+    ...defaultSecuritySettings,
+    ...(security_settings || {}),
+  };
 
   let conn;
 
@@ -451,6 +475,53 @@ router.post('/', authMiddleware, async (req, res) => {
       await syncExamAssignments(conn, result.insertId, student_ids);
     }
 
+    await conn.execute(
+      `
+  INSERT INTO exam_proctoring_settings
+  (
+      exam_id,
+      block_copy_paste,
+      block_cut,
+      block_right_click,
+      block_devtools,
+      block_print,
+      block_text_selection,
+      allow_paste_in_coding,
+      detect_tab_switch,
+      detect_window_blur,
+      detect_fullscreen_exit,
+      inactivity_timeout_seconds,
+      max_idle_warnings,
+      auto_submit_on_violation,
+      track_mouse_movement,
+      track_keyboard_activity
+  )
+  VALUES
+  (
+      ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?
+  )
+`,
+      [
+        result.insertId,
+
+        examSecuritySettings.block_copy_paste,
+        examSecuritySettings.block_cut,
+        examSecuritySettings.block_right_click,
+        examSecuritySettings.block_devtools,
+        examSecuritySettings.block_print,
+        examSecuritySettings.block_text_selection,
+        examSecuritySettings.allow_paste_in_coding,
+        examSecuritySettings.detect_tab_switch,
+        examSecuritySettings.detect_window_blur,
+        examSecuritySettings.detect_fullscreen_exit,
+        examSecuritySettings.inactivity_timeout_seconds,
+        examSecuritySettings.max_idle_warnings,
+        examSecuritySettings.auto_submit_on_violation,
+        examSecuritySettings.track_mouse_movement,
+        examSecuritySettings.track_keyboard_activity,
+      ]
+    );
+
     return res.status(201).json({
       message: 'Exam created successfully',
       exam_id: result.insertId,
@@ -491,6 +562,15 @@ router.get('/:examId', authMiddleware, async (req, res) => {
   try {
     conn = await connectToMySQL();
     const exam = await fetchExamDetails(conn, examId, req.user);
+    const [[securitySettings]] = await conn.execute(
+      `
+  SELECT *
+  FROM exam_proctoring_settings
+  WHERE exam_id = ?
+  LIMIT 1
+`,
+      [examId]
+    );
 
     if (!exam) {
       return res.status(404).json({ message: 'Exam not found' });
@@ -661,9 +741,9 @@ router.patch('/:examId', authMiddleware, async (req, res) => {
     const exam = await fetchExamDetails(conn, examId, req.user);
 
     return res.json({
-      message: 'Exam updated successfully',
       exam: {
         ...exam,
+        security_settings: securitySettings || null,
       },
     });
   } catch (error) {
@@ -689,5 +769,690 @@ router.get('/:examId/report', authMiddleware, async (req, res) => {
   } catch (error) { return res.status(500).json({ message: 'Could not create exam report', error: error.message }); }
   finally { if (conn) conn.release(); }
 });
+router.get('/:examId/instructions', authMiddleware, async (req, res) => {
+  let conn;
 
+  try {
+    conn = await connectToMySQL();
+
+    const examId = Number(req.params.examId);
+
+    const [rows] = await conn.execute(`
+      SELECT
+        exam_id,
+        title,
+        description,
+        instructions,
+        duration_minutes,
+        total_marks,
+        start_datetime,
+        end_datetime
+      FROM exams
+      WHERE exam_id = ?
+      LIMIT 1
+    `, [examId]);
+
+    if (!rows.length) {
+      return res.status(404).json({
+        message: 'Exam not found'
+      });
+    }
+
+    const exam = rows[0];
+
+    return res.json({
+      exam
+    });
+
+  } catch (error) {
+
+    return res.status(500).json({
+      message: 'Unable to load instructions',
+      error: error.message
+    });
+
+  } finally {
+
+    if (conn) conn.release();
+
+  }
+});
+router.post('/:examId/start', authMiddleware, async (req, res) => {
+  let conn;
+
+  try {
+
+    conn = await connectToMySQL();
+
+    const examId = Number(req.params.examId);
+    const studentId = req.user.user_id;
+
+    // ==========================
+    // Check Assignment
+    // ==========================
+
+    const [[assignment]] = await conn.execute(`
+      SELECT *
+      FROM exam_assignments
+      WHERE exam_id = ?
+      AND student_id = ?
+      LIMIT 1
+    `, [examId, studentId]);
+
+    if (!assignment) {
+      return res.status(403).json({
+        message: "You are not enrolled for this exam."
+      });
+    }
+
+    // ==========================
+    // Get Exam
+    // ==========================
+
+    const [[exam]] = await conn.execute(`
+      SELECT *
+      FROM exams
+      WHERE exam_id = ?
+      LIMIT 1
+    `, [examId]);
+
+    if (!exam) {
+      return res.status(404).json({
+        message: "Exam not found."
+      });
+    }
+
+    const now = new Date();
+
+    if (now < new Date(exam.start_datetime)) {
+      return res.status(400).json({
+        message: "Exam has not started yet."
+      });
+    }
+
+    if (now > new Date(exam.end_datetime)) {
+      return res.status(400).json({
+        message: "Exam has already ended."
+      });
+    }
+
+    // ==========================
+    // Already Started?
+    // ==========================
+
+    const [[attempt]] = await conn.execute(`
+      SELECT *
+      FROM exam_attempts
+      WHERE exam_id=?
+      AND student_id=?
+      LIMIT 1
+    `, [examId, studentId]);
+
+    // Resume
+
+    if (attempt) {
+
+      if (attempt.is_submitted) {
+
+        return res.status(400).json({
+
+          success: false,
+
+          message: "This exam has already been submitted."
+
+        });
+
+      }
+
+      const started = new Date(attempt.started_at);
+
+      const elapsed = Math.floor(
+        (Date.now() - started.getTime()) / 1000
+      );
+
+      const remainingSeconds = Math.max(
+        0,
+        exam.duration_minutes * 60 - elapsed
+      );
+
+      return res.json({
+
+        success: true,
+
+        resumed: true,
+
+        attemptId: attempt.attempt_id,
+
+        startedAt: attempt.started_at,
+
+        remainingSeconds
+
+      });
+
+    }
+
+    // ==========================
+    // Create Attempt
+    // ==========================
+
+    const duration =
+      exam.duration_minutes * 60;
+    const {
+      remainingSeconds,
+      currentQuestion,
+      tabSwitch = false,
+      fullscreenExit = false,
+      idleWarning = false,
+    } = req.body;
+    const [result] = await conn.execute(`
+      INSERT INTO exam_attempts
+      (
+        exam_id,
+        student_id,
+        started_at,
+        remaining_seconds,
+        auto_submitted
+      )
+      VALUES
+      (
+        ?,
+        ?,
+        NOW(),
+        ?,
+        0
+      )
+    `, [examId, studentId, duration]);
+
+    // ==========================
+    // Update Assignment
+    // ==========================
+
+    await conn.execute(`
+      UPDATE exam_assignments
+      SET assignment_status='STARTED'
+      WHERE assignment_id=?
+    `, [assignment.assignment_id]);
+
+    return res.json({
+
+      message: "Exam Started",
+
+      resumed: false,
+
+      attemptId: result.insertId,
+
+      startedAt: new Date(),
+
+      remainingSeconds: duration
+
+    });
+
+  }
+
+  catch (error) {
+
+    console.error(error);
+
+    return res.status(500).json({
+
+      message: "Unable to start exam.",
+
+      error: error.message
+
+    });
+
+  }
+
+  finally {
+
+    if (conn) conn.release();
+
+  }
+
+});
+
+router.get('/:examId/status', authMiddleware, async (req, res) => {
+
+  let conn;
+
+  try {
+
+    conn = await connectToMySQL();
+
+    const examId = Number(req.params.examId);
+    const studentId = req.user.user_id;
+
+    const [[attempt]] = await conn.execute(`
+      SELECT
+        attempt_id,
+        started_at,
+        submitted_at,
+        remaining_seconds,
+        auto_submitted,
+        current_question,
+        last_activity
+      FROM exam_attempts
+      WHERE exam_id = ?
+      AND student_id = ?
+      LIMIT 1
+    `, [examId, studentId]);
+
+    if (!attempt) {
+
+      return res.status(404).json({
+        message: "Exam not started."
+      });
+
+    }
+
+    const [[exam]] = await conn.execute(`
+      SELECT
+        duration_minutes,
+        end_datetime
+      FROM exams
+      WHERE exam_id=?
+      LIMIT 1
+    `, [examId]);
+
+    const now = new Date();
+
+    const started = new Date(attempt.started_at);
+
+    const durationEnd =
+      new Date(
+        started.getTime() +
+        exam.duration_minutes * 60 * 1000
+      );
+
+    const examEnd =
+      new Date(exam.end_datetime);
+
+    const finalEnd =
+      durationEnd < examEnd
+        ? durationEnd
+        : examEnd;
+
+    let remaining =
+      Math.floor(
+        (finalEnd - now) / 1000
+      );
+
+    if (remaining < 0)
+      remaining = 0;
+    // ==========================================
+    // Auto Submit
+    // ==========================================
+
+    if (
+      remaining === 0 &&
+      !attempt.submitted_at
+    ) {
+
+      await conn.execute(`
+        UPDATE exam_attempts
+        SET
+            completed_at = NOW(),
+            is_submitted = 1,
+            auto_submitted = 1
+        WHERE attempt_id = ?
+    `, [attempt.attempt_id]);
+
+      await conn.execute(`
+        UPDATE exam_assignments
+        SET assignment_status='AUTO_SUBMITTED'
+        WHERE exam_id=?
+        AND student_id=?
+    `, [examId, studentId]);
+
+      return res.json({
+
+        status: "AUTO_SUBMITTED",
+
+        remainingSeconds: 0,
+
+        autoSubmitted: true
+
+      });
+
+    }
+    return res.json({
+
+      status:
+        attempt.submitted_at
+          ? "SUBMITTED"
+          : remaining === 0
+            ? "TIME_UP"
+            : "IN_PROGRESS",
+
+      remainingSeconds: remaining,
+
+      startedAt: attempt.started_at,
+
+      submitted: Boolean(attempt.submitted_at),
+
+      autoSubmitted:
+        Boolean(attempt.auto_submitted),
+
+      currentQuestion:
+        attempt.current_question
+
+    });
+
+  }
+
+  catch (error) {
+
+    return res.status(500).json({
+
+      message: "Unable to fetch exam status.",
+
+      error: error.message
+
+    });
+
+  }
+
+  finally {
+
+    if (conn)
+      conn.release();
+
+  }
+
+});
+
+router.post('/:examId/heartbeat', authMiddleware, async (req, res) => {
+
+  let conn;
+
+  try {
+
+    conn = await connectToMySQL();
+
+    const examId = Number(req.params.examId);
+    const studentId = req.user.user_id;
+    const {
+      remainingSeconds,
+      currentQuestion,
+      tabSwitch = false,
+      fullscreenExit = false,
+      idleWarning = false,
+    } = req.body;
+    const [result] = await conn.execute(`
+UPDATE exam_attempts
+SET
+    last_activity_at = NOW(),
+    remaining_seconds = ?,
+    current_question = ?,
+    tab_switch_count = tab_switch_count + ?,
+    fullscreen_exit_count = fullscreen_exit_count + ?,
+    idle_warning_count = idle_warning_count + ?
+WHERE
+    exam_id = ?
+AND
+    student_id = ?
+`, [
+      remainingSeconds,
+      currentQuestion,
+      tabSwitch ? 1 : 0,
+      fullscreenExit ? 1 : 0,
+      idleWarning ? 1 : 0,
+      examId,
+      studentId
+    ]);
+
+    if (result.affectedRows === 0) {
+
+      return res.status(404).json({
+
+        message: "Exam attempt not found."
+
+      });
+
+    }
+
+    return res.json({
+
+      success: true
+
+    });
+
+  }
+
+  catch (error) {
+
+    return res.status(500).json({
+
+      message: "Heartbeat failed.",
+
+      error: error.message
+
+    });
+
+  }
+
+  finally {
+
+    if (conn)
+      conn.release();
+
+  }
+
+});
+
+router.post('/:examId/save-answer', authMiddleware, async (req, res) => {
+
+  let conn;
+
+  try {
+
+    conn = await connectToMySQL();
+
+    const examId = Number(req.params.examId);
+    const studentId = req.user.user_id;
+
+    const {
+      questionId,
+      answer,
+      markedForReview = false
+    } = req.body;
+
+    // Verify attempt exists
+    const [[attempt]] = await conn.execute(`
+      SELECT attempt_id
+      FROM exam_attempts
+      WHERE exam_id = ?
+      AND student_id = ?
+      LIMIT 1
+    `, [examId, studentId]);
+
+    if (!attempt) {
+      return res.status(404).json({
+        message: "Exam attempt not found."
+      });
+    }
+
+    // Insert or Update answer
+    await conn.execute(`
+      INSERT INTO student_answers
+      (
+        attempt_id,
+        question_id,
+        selected_answer,
+        marked_for_review,
+        answered_at
+      )
+      VALUES (?, ?, ?, ?, NOW())
+      ON DUPLICATE KEY UPDATE
+        selected_answer = VALUES(selected_answer),
+        marked_for_review = VALUES(marked_for_review),
+        answered_at = NOW()
+    `, [
+      attempt.attempt_id,
+      questionId,
+      JSON.stringify(answer),
+      markedForReview
+    ]);
+
+    return res.json({
+      success: true,
+      message: "Answer saved successfully."
+    });
+
+  } catch (error) {
+
+    return res.status(500).json({
+      message: "Unable to save answer.",
+      error: error.message
+    });
+
+  } finally {
+
+    if (conn) conn.release();
+
+  }
+
+});
+
+router.post('/:examId/submit', authMiddleware, async (req, res) => {
+
+  let conn;
+
+  try {
+
+    conn = await connectToMySQL();
+
+    const examId = Number(req.params.examId);
+    const studentId = req.user.user_id;
+
+    // ==========================================
+    // Get Attempt
+    // ==========================================
+
+    const [[attempt]] = await conn.execute(`
+      SELECT *
+      FROM exam_attempts
+      WHERE exam_id = ?
+      AND student_id = ?
+      LIMIT 1
+    `, [examId, studentId]);
+
+    if (!attempt) {
+      return res.status(404).json({
+        message: "Exam attempt not found."
+      });
+    }
+
+    // Already submitted
+    if (attempt.is_submitted) {
+      return res.status(400).json({
+        message: "Exam already submitted."
+      });
+    }
+
+    // ==========================================
+    // Calculate Objective Score
+    // ==========================================
+
+    const [answers] = await conn.execute(`
+      SELECT
+          sa.selected_answer,
+          q.correct_answer,
+          q.question_type,
+          q.marks
+      FROM student_answers sa
+      JOIN questions q
+      ON q.question_id = sa.question_id
+      WHERE sa.attempt_id = ?
+    `, [attempt.attempt_id]);
+
+    let totalScore = 0;
+
+    for (const ans of answers) {
+
+      if (
+        ans.question_type === 'mcq' ||
+        ans.question_type === 'msq'
+      ) {
+
+        if (
+          JSON.stringify(ans.selected_answer)
+          ===
+          JSON.stringify(ans.correct_answer)
+        ) {
+          totalScore += Number(ans.marks);
+        }
+
+      }
+
+    }
+
+    // ==========================================
+    // Update Attempt
+    // ==========================================
+
+    await conn.execute(`
+    UPDATE exam_attempts
+    SET
+        completed_at = NOW(),
+        total_score = ?,
+        is_submitted = 1,
+        auto_submitted = 0
+    WHERE attempt_id = ?
+`, [
+      totalScore,
+      attempt.attempt_id
+    ]);
+
+
+    // ==========================================
+    // Update Assignment
+    // ==========================================
+
+    await conn.execute(`
+      UPDATE exam_assignments
+      SET
+        assignment_status='SUBMITTED'
+      WHERE
+        exam_id=?
+      AND
+        student_id=?
+    `, [examId, studentId]);
+
+    return res.json({
+
+      success: true,
+
+      message: "Exam submitted successfully.",
+
+      score: totalScore,
+
+      pendingManualReview: true
+
+    });
+
+  }
+
+  catch (error) {
+
+    console.error(error);
+
+    return res.status(500).json({
+
+      message: "Unable to submit exam.",
+
+      error: error.message
+
+    });
+
+  }
+
+  finally {
+
+    if (conn)
+      conn.release();
+
+  }
+
+});
 module.exports = router;

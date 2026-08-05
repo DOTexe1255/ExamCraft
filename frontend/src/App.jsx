@@ -15,6 +15,7 @@ import InstituteDashboard from "./components/institute/InstituteDashboard";
 import ExamDashboard from './components/exam/ExamDashboard';
 import ProtectedRoute from './components/ProtectedRoute';
 import { getStoredAuth } from './global/authStorage';
+import ExamInstructions from "./components/student/ExamInstructions";
 
 const getDashboardPath = (role) => {
   if (role === 'student') return '/student-dashboard';
@@ -39,6 +40,7 @@ const App = () => {
         <Route path="/department-exams/new" element={<ProtectedRoute allowedRoles={['department']}><ExamCreatePage /></ProtectedRoute>} />
         <Route path="/department-exams/:examId/settings" element={<ProtectedRoute allowedRoles={['department']}><ExamSettingsPage /></ProtectedRoute>} />
         <Route path="/institute-dashboard" element={<ProtectedRoute allowedRoles={['institute']}><InstituteDashboard /></ProtectedRoute>} />
+        <Route path="/exam/:examId/instructions" element={<ProtectedRoute allowedRoles={['student']}><ExamInstructions /></ProtectedRoute>}/>
         <Route path="/exam/:examId" element={<ProtectedRoute allowedRoles={['student', 'institute', 'department']}><ExamDashboard /></ProtectedRoute>} />
       </Routes>
     </HashRouter>

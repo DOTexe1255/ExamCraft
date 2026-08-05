@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Editor from '@monaco-editor/react';
 import { requestJson } from '../../global/api';
@@ -31,21 +31,21 @@ const normalizeQuestion = (question, index) => {
     ? question.options
       .map((option, optionIndex) => (typeof option === 'object' && option !== null
         ? {
-            id: option.id || String(optionIndex),
-            text: String(option.text ?? option.label ?? option.value ?? ''),
-          }
+          id: option.id || String(optionIndex),
+          text: String(option.text ?? option.label ?? option.value ?? ''),
+        }
         : {
-            id: String(optionIndex),
-            text: String(option ?? ''),
-          }))
+          id: String(optionIndex),
+          text: String(option ?? ''),
+        }))
       .filter((option) => option.text.trim())
     : [];
 
   const testCases = Array.isArray(question?.testCases || question?.test_cases)
     ? (question?.testCases || question?.test_cases).map((item) => ({
-        input: String(item?.input ?? ''),
-        expected: String(item?.expected ?? ''),
-      }))
+      input: String(item?.input ?? ''),
+      expected: String(item?.expected ?? ''),
+    }))
     : [];
 
   return {
@@ -75,14 +75,23 @@ const ExamDashboard = () => {
   const [examData, setExamData] = useState(null);
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [answers, setAnswers] = useState({});
+  const [autoSaving, setAutoSaving] = useState(false);
+  const [autoSaveTimeout, setAutoSaveTimeout] = useState(null);
+  const [markedQuestions, setMarkedQuestions] = useState([]);
   const [timeLeft, setTimeLeft] = useState(3600);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [fullscreenWarning, setFullscreenWarning] = useState(0);
+  const [tabSwitchCount, setTabSwitchCount] = useState(0);
+  const idleTimerRef = useRef(null);
+const [idleWarningCount, setIdleWarningCount] = useState(0);
+  const [submitting, setSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [showConfirm, setShowConfirm] = useState(false);
   const [attemptCount, setAttemptCount] = useState(1);
   const [savedQuestions, setSavedQuestions] = useState({});
   const [statusMessage, setStatusMessage] = useState('');
   const [runResults, setRunResults] = useState({});
+  const [securitySettings, setSecuritySettings] = useState(null);
 
   const persistAttempt = useCallback((overrides = {}) => {
     if (!examData?.id || typeof window === 'undefined') return;
@@ -103,6 +112,32 @@ const ExamDashboard = () => {
     storedAttempts[String(examData.id)] = nextState;
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(storedAttempts));
   }, [answers, attemptCount, currentQuestion, examData?.id, examData?.title, isSubmitted, savedQuestions, timeLeft]);
+
+  const sendHeartbeat = useCallback(async (extra = {}) => {
+    if (!examData || isSubmitted) return;
+
+    try {
+      await requestJson(`/api/exams/${examId}/heartbeat`, {
+        method: "POST",
+        body: JSON.stringify({
+          remainingSeconds: timeLeft,
+          currentQuestion,
+          tabSwitch: false,
+          fullscreenExit: false,
+          idleWarning: false,
+          ...extra,
+        }),
+      });
+    } catch (error) {
+      console.error("Heartbeat failed:", error);
+    }
+  }, [
+    examData,
+    examId,
+    timeLeft,
+    currentQuestion,
+    isSubmitted,
+  ]);
 
   const fetchExamData = useCallback(async () => {
     try {
@@ -125,12 +160,14 @@ const ExamDashboard = () => {
         passing_marks: exam.passing_marks || 40,
         instructions: exam.instructions,
         questions,
+        security_settings: exam.security_settings || null,
       };
 
       const storedAttempts = getStoredAttempts();
       const existingAttempt = storedAttempts[String(exam.exam_id)];
 
       setExamData(preparedExam);
+      setSecuritySettings(preparedExam.security_settings);
       setTimeLeft(Number(existingAttempt?.timeLeft ?? preparedExam.duration * 60));
       setAnswers(existingAttempt?.answers || {});
       setCurrentQuestion(Number(existingAttempt?.currentQuestion || 0));
@@ -148,7 +185,19 @@ const ExamDashboard = () => {
       setIsLoading(false);
     }
   }, [examId]);
+  useEffect(() => {
 
+    const attempt = JSON.parse(
+      sessionStorage.getItem("examAttempt") || "{}"
+    );
+
+    if (attempt.remainingSeconds) {
+
+      setTimeLeft(attempt.remainingSeconds);
+
+    }
+
+  }, []);
   useEffect(() => {
     let active = true;
 
@@ -157,12 +206,37 @@ const ExamDashboard = () => {
       await fetchExamData();
     };
 
+
     loadExam();
 
     return () => {
       active = false;
     };
   }, [fetchExamData]);
+  useEffect(() => {
+
+    const handleBeforeUnload = (event) => {
+
+      if (isSubmitted) return;
+
+      event.preventDefault();
+
+      event.returnValue = "";
+
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+
+    return () => {
+
+      window.removeEventListener(
+        "beforeunload",
+        handleBeforeUnload
+      );
+
+    };
+
+  }, [isSubmitted]);
 
   useEffect(() => {
     if (!examData) return;
@@ -184,10 +258,314 @@ const ExamDashboard = () => {
     }, 1000);
 
     return () => window.clearInterval(timer);
-  }, [examData?.id, isSubmitted]);
+  }, [examData?.id, isSubmitted, handleSubmit]);
+
+  useEffect(() => {
+    if (!examData || isSubmitted) return;
+
+    const interval = setInterval(() => {
+      sendHeartbeat();
+    }, 15000); // 15 seconds
+
+    return () => clearInterval(interval);
+  }, [examData, isSubmitted, sendHeartbeat]);
+
+  useEffect(() => {
+
+    return () => {
+
+      if (autoSaveTimeout) {
+        clearTimeout(autoSaveTimeout);
+      }
+
+    };
+
+  }, [autoSaveTimeout]);
+  useEffect(() => {
+
+    const handleFullscreen = () => {
+
+      if (document.fullscreenElement) return;
+
+      if (isSubmitted) return;
+
+      setFullscreenWarning((count) => {
+
+        const next = count + 1;
+
+        alert(
+          `Fullscreen exited (${next}/3)`
+        );
+
+        if (next >= 3) {
+
+          handleSubmit();
+
+        }
+
+        return next;
+
+      });
+
+    };
+    useEffect(() => {
+
+  if (!securitySettings?.block_right_click) {
+    return;
+  }
+
+  const handleContextMenu = (event) => {
+
+    event.preventDefault();
+
+    setStatusMessage("Right click is disabled during the exam.");
+
+  };
+
+  document.addEventListener("contextmenu", handleContextMenu);
+
+  return () => {
+
+    document.removeEventListener(
+      "contextmenu",
+      handleContextMenu
+    );
+
+  };
+
+}, [securitySettings]);
+useEffect(() => {
+
+  if (!securitySettings) return;
+
+  const handleKeyDown = (event) => {
+
+    const key = event.key.toLowerCase();
+
+    const modifier = event.ctrlKey || event.metaKey;
+
+    const isCopy = modifier && key === "c";
+    const isCut = modifier && key === "x";
+    const isPaste = modifier && key === "v";
+    const isF12 = event.key === "F12";
+
+const isDevTools =
+  modifier &&
+  event.shiftKey &&
+  (
+    key === "i" ||
+    key === "j" ||
+    key === "c"
+  );
+
+const isViewSource =
+  modifier &&
+  key === "u";
+
+const isPrint =
+  modifier &&
+  key === "p";
+if (
+  securitySettings.block_devtools &&
+  (
+    isF12 ||
+    isDevTools ||
+    isViewSource
+  )
+) {
+
+  event.preventDefault();
+
+  setStatusMessage(
+    "Developer tools are disabled during the exam."
+  );
+
+  return;
+
+}
+
+if (
+  securitySettings.block_print &&
+  isPrint
+) {
+
+  event.preventDefault();
+
+  setStatusMessage(
+    "Printing is disabled during the exam."
+  );
+
+  return;
+
+}
+    const current = examData?.questions?.[currentQuestion];
+    const codingQuestion = current?.type === "code";
+
+    // Coding question me paste allow hai
+    if (
+      isPaste &&
+      codingQuestion &&
+      securitySettings.allow_paste_in_coding
+    ) {
+      return;
+    }
+
+    if (
+      isCopy &&
+      securitySettings.block_copy_paste
+    ) {
+      event.preventDefault();
+      setStatusMessage("Copy is disabled during the exam.");
+      return;
+    }
+
+    if (
+      isCut &&
+      securitySettings.block_cut
+    ) {
+      event.preventDefault();
+      setStatusMessage("Cut is disabled during the exam.");
+      return;
+    }
+
+    if (
+      isPaste &&
+      securitySettings.block_copy_paste
+    ) {
+      event.preventDefault();
+      setStatusMessage("Paste is disabled during the exam.");
+    }
+
+  };
+
+  document.addEventListener("keydown", handleKeyDown);
+
+  return () => {
+    document.removeEventListener("keydown", handleKeyDown);
+  };
+
+}, [securitySettings, examData, currentQuestion]);
+
+
+
+    document.addEventListener(
+      "fullscreenchange",
+      handleFullscreen
+    );
+
+    return () => {
+
+      document.removeEventListener(
+        "fullscreenchange",
+        handleFullscreen
+      );
+
+    };
+
+  }, [handleSubmit, isSubmitted]);
+  useEffect(() => {
+
+    const handleVisibility = () => {
+
+      if (document.visibilityState === "visible") return;
+
+      if (isSubmitted) return;
+      sendHeartbeat({
+        tabSwitch: true,
+      });
+      setTabSwitchCount((count) => {
+
+        const next = count + 1;
+
+        alert(`Tab switched (${next}/3)`);
+
+        if (next >= 3) {
+
+          handleSubmit();
+
+        }
+
+        return next;
+
+      });
+
+    };
+
+    document.addEventListener(
+      "visibilitychange",
+      handleVisibility
+    );
+
+    return () => {
+
+      document.removeEventListener(
+        "visibilitychange",
+        handleVisibility
+      );
+
+    };
+
+  }, [handleSubmit, isSubmitted]);
+  useEffect(() => {
+
+    if (isSubmitted) return;
+
+    const resetIdleTimer = () => {
+
+        if (idleTimerRef.current) {
+            clearTimeout(idleTimerRef.current);
+        }
+
+        idleTimerRef.current = setTimeout(() => {
+
+            setIdleWarningCount((count) => {
+
+                const next = count + 1;
+
+                alert(`You have been inactive for 2 minutes (${next})`);
+
+                sendHeartbeat({
+                    idleWarning: true,
+                });
+
+                if (next >= 3) {
+                    handleSubmit();
+                }
+
+                return next;
+
+            });
+
+        }, 120000); // 2 minutes
+
+    };
+
+    resetIdleTimer();
+
+    window.addEventListener("mousemove", resetIdleTimer);
+    window.addEventListener("keydown", resetIdleTimer);
+    window.addEventListener("scroll", resetIdleTimer);
+    window.addEventListener("click", resetIdleTimer);
+
+    return () => {
+
+        if (idleTimerRef.current) {
+            clearTimeout(idleTimerRef.current);
+        }
+
+        window.removeEventListener("mousemove", resetIdleTimer);
+        window.removeEventListener("keydown", resetIdleTimer);
+        window.removeEventListener("scroll", resetIdleTimer);
+        window.removeEventListener("click", resetIdleTimer);
+
+    };
+
+}, [isSubmitted, handleSubmit, sendHeartbeat]);
 
   const question = examData?.questions?.[currentQuestion];
   const minutes = Math.floor(timeLeft / 60);
+  const isWarningTime = timeLeft <= 300;
+  const isCriticalTime = timeLeft <= 60;
   const seconds = timeLeft % 60;
 
   const getCodeAnswer = (currentQuestionData) => {
@@ -208,28 +586,106 @@ const ExamDashboard = () => {
   };
 
   const handleAnswerSelect = (questionId, answerId) => {
-    setAnswers((current) => ({ ...current, [questionId]: answerId }));
-    setStatusMessage('Option selected. Tap “Save answer” to keep it.');
+
+    setAnswers((current) => ({
+      ...current,
+      [questionId]: answerId,
+    }));
+
+    setAutoSaving(true);
+
+    setStatusMessage("Option selected.");
+
+    if (autoSaveTimeout) {
+      clearTimeout(autoSaveTimeout);
+    }
+
+    const timeout = setTimeout(() => {
+
+      handleSaveAnswer();
+
+      setAutoSaving(false);
+
+    }, 2000);
+
+    setAutoSaveTimeout(timeout);
+
   };
 
   const updateDescriptiveAnswer = (questionId, value) => {
-    setAnswers((current) => ({ ...current, [questionId]: value }));
+
+    setAnswers((current) => ({
+      ...current,
+      [questionId]: value
+    }));
+
+    setAutoSaving(true);
+
+    if (autoSaveTimeout) {
+
+      clearTimeout(autoSaveTimeout);
+
+    }
+
+    const timeout = setTimeout(() => {
+
+      handleSaveAnswer();
+
+      setAutoSaving(false);
+
+    }, 2000);
+
+    setAutoSaveTimeout(timeout);
+
   };
 
   const updateCodeAnswer = (questionId, field, value) => {
+
     setAnswers((current) => {
-      const previous = current[questionId] && typeof current[questionId] === 'object'
-        ? current[questionId]
-        : { language: 'javascript', source: '' };
+
+      const previous =
+        current[questionId] &&
+          typeof current[questionId] === "object"
+          ? current[questionId]
+          : {
+            language: "javascript",
+            source: "",
+          };
 
       return {
+
         ...current,
+
         [questionId]: {
+
           ...previous,
+
           [field]: value,
+
         },
+
       };
+
     });
+
+    setAutoSaving(true);
+
+    if (autoSaveTimeout) {
+
+      clearTimeout(autoSaveTimeout);
+
+    }
+
+    const timeout = setTimeout(() => {
+
+      handleSaveAnswer();
+
+      setAutoSaving(false);
+
+    }, 2000);
+
+    setAutoSaveTimeout(timeout);
+
   };
 
   const handleSaveAnswer = () => {
@@ -258,50 +714,118 @@ const ExamDashboard = () => {
   };
 
   const handleRunCode = async () => {
-    if (!question || question.type !== 'code') {
-      return;
-    }
+    if (!question || question.type !== "code") return;
 
     const codeAnswer = getCodeAnswer(question);
 
+    let source = codeAnswer.source;
+
+    // Agar C++ hai to wrapper add karo
+    if (codeAnswer.language === "cpp") {
+      source = `
+#include <bits/stdc++.h>
+using namespace std;
+
+${codeAnswer.source}
+
+int main() {
+    int t;
+    cin >> t;
+
+    while (t--) {
+        long long n;
+        cin >> n;
+        ${question.functionName}(n);
+    }
+
+    return 0;
+}
+`;
+    }
+
     try {
-      setRunResults((current) => ({ ...current, [question.id]: { running: true } }));
-      const response = await requestJson('/api/run', {
-        method: 'POST',
-        body: JSON.stringify({
-          language: codeAnswer.language,
-          source: codeAnswer.source,
-          input: question.testCases?.[0]?.input || '',
-        }),
+      const results = [];
+
+      for (let i = 0; i < question.testCases.length; i++) {
+        const tc = question.testCases[i];
+
+        const start = performance.now();
+
+        const response = await requestJson("/api/run", {
+          method: "POST",
+          body: JSON.stringify({
+            language: codeAnswer.language,
+            source: source,
+            input: tc.input,
+          }),
+        });
+
+        const end = performance.now();
+
+        const got = (response.stdout || "").trim();
+        const expected = (tc.expected || "").trim();
+
+        results.push({
+          id: i + 1,
+          input: tc.input,
+          expected,
+          got,
+          stderr: response.stderr || "",
+          exitCode: response.exitCode || 0,
+          passed:
+            response.exitCode === 0 &&
+            got === expected,
+          time: ((end - start) / 1000).toFixed(2) + "s",
+        });
+
+        // Compile error aaye to wahi stop
+        if (response.stderr || response.exitCode !== 0) {
+          break;
+        }
+      }
+
+      setRunResults({
+        ...runResults,
+        [question.id]: results,
       });
 
-      setRunResults((current) => ({
-        ...current,
-        [question.id]: {
-          running: false,
-          stdout: response.stdout || '',
-          stderr: response.stderr || '',
-          exitCode: response.exitCode || 0,
-        },
-      }));
-      setStatusMessage('Code executed successfully.');
+      setStatusMessage("Code executed successfully.");
     } catch (error) {
-      setRunResults((current) => ({
-        ...current,
-        [question.id]: {
-          running: false,
-          stdout: '',
-          stderr: error.message || 'Execution failed',
-          exitCode: 1,
-        },
-      }));
+      setRunResults({
+        ...runResults,
+        [question.id]: [
+          {
+            id: "ERROR",
+            input: "",
+            expected: "",
+            got: "",
+            stderr: error.message,
+            exitCode: 1,
+            passed: false,
+            time: "0s",
+          },
+        ],
+      });
+
+      setStatusMessage("Execution failed.");
     }
   };
-
   const handleNext = () => {
-    if (examData && currentQuestion < examData.questions.length - 1) {
-      setCurrentQuestion((current) => current + 1);
+
+    if (!examData) return;
+
+    if (currentQuestion === examData.questions.length - 1) {
+
+      setCurrentQuestion(0);
+
     }
+
+    else {
+
+      setCurrentQuestion(currentQuestion + 1);
+
+    }
+
   };
 
   const handlePrevious = () => {
@@ -309,19 +833,120 @@ const ExamDashboard = () => {
       setCurrentQuestion((current) => current - 1);
     }
   };
+  const handleSaveAndNext = () => {
 
-  const handleSubmit = async () => {
-    try {
-      await new Promise((resolve) => window.setTimeout(resolve, 800));
-      setIsSubmitted(true);
-      setAttemptCount((current) => current + 1);
-      setStatusMessage('Exam submitted successfully.');
-      persistAttempt({ isSubmitted: true, attemptCount: attemptCount + 1 });
-    } catch (error) {
-      console.error('Failed to submit exam:', error);
-      alert('Failed to submit exam. Please try again.');
-    }
+    handleSaveAnswer();
+
+    handleNext();
+
   };
+  const handleMarkForReview = () => {
+
+    if (!markedQuestions.includes(currentQuestion)) {
+
+      setMarkedQuestions((prev) => [
+
+        ...prev,
+
+        currentQuestion
+
+      ]);
+
+    }
+
+    handleSaveAnswer();
+
+    handleNext();
+
+  };
+  const getQuestionStatus = (index) => {
+
+    const answered =
+      answers[index] !== undefined &&
+      answers[index] !== null &&
+      answers[index] !== "";
+
+    const marked = markedQuestions.includes(index);
+
+    if (currentQuestion === index) {
+      return "CURRENT";
+    }
+
+    if (answered && marked) {
+      return "ANSWERED_REVIEW";
+    }
+
+    if (answered) {
+      return "ANSWERED";
+    }
+
+    if (marked) {
+      return "REVIEW";
+    }
+
+    return "NOT_ANSWERED";
+
+  };
+const handleSubmit = useCallback(async () => {
+
+  if (submitting) return;
+
+  setSubmitting(true);
+
+  try {
+
+    const response = await requestJson(
+      `/api/exams/${examData.id}/submit`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          answers,
+        }),
+      }
+    );
+
+    setIsSubmitted(true);
+
+    setAttemptCount((current) => current + 1);
+
+    setStatusMessage(
+      response.message || "Exam submitted successfully."
+    );
+
+    // Remove local saved progress
+
+    const storedAttempts = getStoredAttempts();
+
+    delete storedAttempts[String(examData.id)];
+
+    window.localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify(storedAttempts)
+    );
+
+    sessionStorage.removeItem("examAttempt");
+
+  }
+
+  catch (error) {
+
+    console.error(error);
+
+    alert(error.message || "Failed to submit exam.");
+
+  }
+
+  finally {
+
+    setSubmitting(false);
+
+  }
+
+}, [
+  answers,
+  examData,
+  submitting,
+]);
 
   const handleConfirmSubmit = () => {
     setShowConfirm(true);
@@ -419,6 +1044,7 @@ const ExamDashboard = () => {
 
   const currentCodeAnswer = question.type === 'code' ? getCodeAnswer(question) : null;
 
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-student-50 to-student-100">
       <div className="sticky top-0 z-50 border-b border-student-200 bg-white/80 backdrop-blur-md">
@@ -431,10 +1057,45 @@ const ExamDashboard = () => {
             <div className="flex items-center gap-6">
               <div className="text-right">
                 <div className="text-sm text-gray-500">Time Remaining</div>
-                <div className={`text-2xl font-mono font-bold ${timeLeft < 300 ? 'text-red-600 animate-pulse' : 'text-student-600'}`}>
+                selected_ans<div
+                  className={`text-2xl font-mono font-bold transition-all duration-300
+
+  ${isCriticalTime
+                      ? "text-red-600 animate-pulse"
+
+                      : isWarningTime
+                        ? "text-orange-500"
+
+                        : "text-student-600"
+                    }`}
+                >wer
                   {String(minutes).padStart(2, '0')}:{String(seconds).padStart(2, '0')}
+                  {isCriticalTime && (
+                    <p className="mt-1 text-xs font-semibold text-red-600 animate-pulse">
+                      ⚠ Less than 1 minute remaining
+                    </p>
+                  )}
+
+                  {!isCriticalTime && isWarningTime && (
+                    <p className="mt-1 text-xs font-semibold text-orange-500">
+                      ⏰ Less than 5 minutes remaining
+                    </p>
+                  )}
                 </div>
               </div>
+
+              <div className="mt-1 text-right">
+                {autoSaving ? (
+                  <span className="text-yellow-500 text-xs font-medium">
+                    Saving...
+                  </span>
+                ) : (
+                  <span className="text-green-600 text-xs font-medium">
+                    ✓ Saved
+                  </span>
+                )}
+              </div>
+
               <div className="text-center">
                 <div className="text-sm text-gray-500">
                   Question {currentQuestion + 1} of {examData.questions.length}
@@ -473,11 +1134,10 @@ const ExamDashboard = () => {
                   <button
                     key={option.id}
                     onClick={() => handleAnswerSelect(question.id, option.id)}
-                    className={`group flex w-full items-start gap-4 rounded-2xl border-2 p-6 text-left transition-all duration-300 hover:-translate-y-1 hover:shadow-xl ${
-                      answers[question.id] === option.id
-                        ? 'border-student-500 bg-gradient-to-r from-student-50 to-student-100 shadow-student-lg ring-4 ring-student-200/50'
-                        : 'border-gray-200 hover:border-student-300 hover:bg-gray-50'
-                    }`}
+                    className={`group flex w-full items-start gap-4 rounded-2xl border-2 p-6 text-left transition-all duration-300 hover:-translate-y-1 hover:shadow-xl ${answers[question.id] === option.id
+                      ? 'border-student-500 bg-gradient-to-r from-student-50 to-student-100 shadow-student-lg ring-4 ring-student-200/50'
+                      : 'border-gray-200 hover:border-student-300 hover:bg-gray-50'
+                      }`}
                   >
                     <span className="w-12 flex-shrink-0 text-xl font-bold text-student-500 transition-colors group-hover:text-student-600">{String.fromCharCode(65 + index)}.</span>
                     <span className="flex-1 leading-relaxed">{option.text}</span>
@@ -589,10 +1249,51 @@ const ExamDashboard = () => {
                   </button>
                 </div>
 
-                {runResults[question.id] && (
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm">
-                    <p className="font-semibold text-slate-900">Execution result</p>
-                    <p className="mt-2 whitespace-pre-wrap text-slate-700">{runResults[question.id].stdout || runResults[question.id].stderr || 'No output'}</p>
+                {Array.isArray(runResults[question.id]) && (
+                  <div className="space-y-4">
+                    <div className="rounded-2xl bg-slate-900 p-4 text-white">
+                      <h3 className="text-lg font-bold">
+                        Passed {runResults[question.id].filter(r => r.passed).length} / {runResults[question.id].length}
+                      </h3>
+                    </div>
+
+                    {runResults[question.id].map((result) => (
+                      <div
+                        key={result.id}
+                        className={`rounded-2xl border p-4 ${result.passed
+                          ? 'border-green-500 bg-green-50'
+                          : 'border-red-500 bg-red-50'
+                          }`}
+                      >
+                        <div className="flex justify-between">
+                          <h4 className="font-semibold">Test Case #{result.id}</h4>
+                          <span className={result.passed ? 'text-green-600 font-bold' : 'text-red-600 font-bold'}>
+                            {result.passed ? 'PASS' : 'FAIL'}
+                          </span>
+                        </div>
+
+                        <div className="mt-3 grid grid-cols-3 gap-4">
+                          <div>
+                            <p className="font-semibold">Input</p>
+                            <pre>{result.input}</pre>
+                          </div>
+                          <div>
+                            <p className="font-semibold">Expected</p>
+                            <pre>{result.expected}</pre>
+                          </div>
+                          <div>
+                            <p className="font-semibold">Your Output</p>
+                            <pre>{result.got}</pre>
+                          </div>
+                        </div>
+
+                        {result.stderr && (
+                          <div className="mt-3 rounded bg-red-100 p-3 text-red-700">
+                            <pre>{result.stderr}</pre>
+                          </div>
+                        )}
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
@@ -610,20 +1311,70 @@ const ExamDashboard = () => {
                   <button
                     key={item.id}
                     onClick={() => setCurrentQuestion(index)}
-                    className={`rounded-xl border px-3 py-2 text-sm font-semibold ${
-                      currentQuestion === index
-                        ? 'border-student-500 bg-student-600 text-white'
-                        : saved
-                          ? 'border-indigo-400 bg-indigo-600 text-white'
-                          : answered
-                            ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
-                            : 'border-gray-200 bg-white text-gray-700 hover:border-student-300'
-                    }`}
+                    className={`
+                      w-10
+                      h-10
+                      rounded-lg
+                      font-semibold
+                      transition-all
+                      duration-200
+
+                      ${getQuestionStatus(index) === "CURRENT"
+                        ? "bg-blue-600 text-white"
+
+                        : getQuestionStatus(index) === "ANSWERED_REVIEW"
+                          ? "bg-purple-600 text-white"
+
+                          : getQuestionStatus(index) === "ANSWERED"
+                            ? "bg-green-600 text-white"
+
+                            : getQuestionStatus(index) === "REVIEW"
+                              ? "bg-orange-500 text-white"
+
+                              : "bg-gray-200 text-gray-700"
+                      }
+                      `}
                   >
                     {index + 1}
                   </button>
                 );
               })}
+            </div>
+            <div className="mt-6 border-t border-slate-700 pt-4">
+
+              <h3 className="text-sm font-semibold text-slate-300 mb-3">
+                Question Status
+              </h3>
+
+              <div className="space-y-2 text-xs">
+
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 rounded bg-blue-600"></div>
+                  <span>Current Question</span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 rounded bg-green-600"></div>
+                  <span>Answered</span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 rounded bg-orange-500"></div>
+                  <span>Marked For Review</span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 rounded bg-purple-600"></div>
+                  <span>Answered & Review</span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 rounded bg-gray-300 border border-gray-500"></div>
+                  <span>Not Answered</span>
+                </div>
+
+              </div>
+
             </div>
             <div className="mt-6 rounded-2xl bg-slate-50 p-4 text-sm text-slate-600">
               <p><span className="font-semibold text-slate-900">Attempted:</span> {Object.keys(answers).length} / {examData.questions.length}</p>
@@ -647,16 +1398,26 @@ const ExamDashboard = () => {
 
             <div className="flex flex-col gap-3 sm:flex-row">
               <button
-                onClick={handleSaveAnswer}
+                onClick={handleSaveAndNext}
                 disabled={question.type === 'mcq' ? !answers[question.id] : question.type === 'descriptive' ? !String(answers[question.id] || '').trim() : !getCodeAnswer(question).source.trim()}
                 className="flex items-center justify-center gap-3 rounded-2xl border border-student-300 bg-white px-6 py-4 text-lg font-semibold text-student-700 shadow-sm transition-all duration-300 hover:bg-student-50 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
-                Save answer
+                Save & Next
               </button>
+              <button
 
+                onClick={handleMarkForReview}
+
+                className="rounded-lg bg-orange-500 hover:bg-orange-600 px-5 py-2 font-medium text-white"
+
+              >
+
+                Mark for Review & Next
+
+              </button>
               <button
                 onClick={handleSaveAndExit}
                 className="flex items-center justify-center gap-3 rounded-2xl border border-slate-300 bg-slate-50 px-6 py-4 text-lg font-semibold text-slate-700 shadow-sm transition-all duration-300 hover:bg-slate-100"
@@ -666,18 +1427,17 @@ const ExamDashboard = () => {
 
               <button
                 onClick={handleConfirmSubmit}
-                disabled={Object.keys(answers).length === 0}
+                disabled={Object.keys(answers).length === 0 || submitting}
                 className="flex items-center justify-center gap-3 rounded-2xl bg-gradient-to-r from-student-600 to-student-700 px-10 py-4 text-lg font-bold text-white shadow-2xl transition-all duration-300 hover:-translate-y-1 hover:from-student-700 hover:to-student-800 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
-                Submit Exam
+                {submitting ? "Submitting..." : "Submit Exam"}
               </button>
 
               <button
                 onClick={handleNext}
-                disabled={currentQuestion === examData.questions.length - 1}
                 className="flex items-center justify-center gap-3 rounded-2xl bg-gradient-to-r from-student-500 to-student-600 px-8 py-4 text-lg font-semibold text-white shadow-xl transition-all duration-300 hover:-translate-y-1 hover:from-student-600 hover:to-student-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Next

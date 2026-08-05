@@ -88,6 +88,35 @@ const AvailableExams = ({ exams, loading }) => {
   );
 
   const savedAttempts = useMemo(() => getStoredAttempts(), [exams]);
+  const canStartExam = (exam) => {
+
+    const now = new Date();
+
+    const start = new Date(exam.start_datetime);
+
+    const end = new Date(exam.end_datetime);
+
+    // Already submitted
+    if (
+      exam.assignment_status === "SUBMITTED" ||
+      exam.assignment_status === "AUTO_SUBMITTED"
+    ) {
+      return false;
+    }
+
+    // Exam not started yet
+    if (now < start) {
+      return false;
+    }
+
+    // Exam finished
+    if (now > end) {
+      return false;
+    }
+
+    return true;
+
+  };
 
   return (
     <section className="rounded-2xl border border-slate-200/80 bg-white shadow-sm">
@@ -111,9 +140,8 @@ const AvailableExams = ({ exams, loading }) => {
             <button
               key={item}
               onClick={() => setFilter(item)}
-              className={`whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-semibold capitalize ${
-                filter === item ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
+              className={`whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-semibold capitalize ${filter === item ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
             >
               {item}
             </button>
@@ -163,13 +191,18 @@ const AvailableExams = ({ exams, loading }) => {
                       {isSelected ? 'Hide details' : 'Enroll now'}
                     </button>
                     <button
-                      onClick={() => {
-                        if (isExamOpen || canResume) navigate(`/exam/${exam.exam_id}`);
-                      }}
-                      disabled={!(isExamOpen || canResume)}
-                      className="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+                      disabled={!canStartExam(exam)}
+                      onClick={() =>
+                        navigate(`/exam/${exam.exam_id}/instructions`)
+                      }
+                      className={`px-4 py-2 rounded-lg ${canStartExam(exam)
+                          ? "bg-blue-600 hover:bg-blue-700 text-white"
+                          : "bg-gray-400 text-gray-700 cursor-not-allowed"
+                        }`}
                     >
-                      {canResume ? 'Resume exam' : isExamOpen ? 'Start exam' : 'Upcoming'}
+                      {exam.assignment_status === "SUBMITTED"
+                        ? "Submitted"
+                        : "Start Exam"}
                     </button>
                   </div>
                 </div>
