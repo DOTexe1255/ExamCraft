@@ -937,41 +937,24 @@ router.post('/:examId/start', authMiddleware, async (req, res) => {
 
     const duration =
       exam.duration_minutes * 60;
-    const {
-      remainingSeconds,
-      currentQuestion,
-      tabSwitch = false,
-      fullscreenExit = false,
-      idleWarning = false,
-    } = req.body;
     const [result] = await conn.execute(`
       INSERT INTO exam_attempts
       (
+        assignment_id,
         exam_id,
         student_id,
         started_at,
-        remaining_seconds,
-        auto_submitted
+        total_marks
       )
       VALUES
       (
         ?,
         ?,
-        NOW(),
         ?,
-        0
+        NOW(),
+        ?
       )
-    `, [examId, studentId, duration]);
-
-    // ==========================
-    // Update Assignment
-    // ==========================
-
-    await conn.execute(`
-      UPDATE exam_assignments
-      SET assignment_status='STARTED'
-      WHERE assignment_id=?
-    `, [assignment.assignment_id]);
+    `, [assignment.assignment_id, examId, studentId, exam.total_marks]);
 
     return res.json({
 
@@ -1171,37 +1154,14 @@ router.post('/:examId/heartbeat', authMiddleware, async (req, res) => {
 
     const examId = Number(req.params.examId);
     const studentId = req.user.user_id;
-    const {
-      remainingSeconds,
-      currentQuestion,
-      tabSwitch = false,
-      fullscreenExit = false,
-      idleWarning = false,
-    } = req.body;
-    const [result] = await conn.execute(`
-UPDATE exam_attempts
-SET
-    last_activity_at = NOW(),
-    remaining_seconds = ?,
-    current_question = ?,
-    tab_switch_count = tab_switch_count + ?,
-    fullscreen_exit_count = fullscreen_exit_count + ?,
-    idle_warning_count = idle_warning_count + ?
-WHERE
-    exam_id = ?
-AND
-    student_id = ?
-`, [
-      remainingSeconds,
-      currentQuestion,
-      tabSwitch ? 1 : 0,
-      fullscreenExit ? 1 : 0,
-      idleWarning ? 1 : 0,
-      examId,
-      studentId
-    ]);
+    const [[attempt]] = await conn.execute(`
+      SELECT attempt_id
+      FROM exam_attempts
+      WHERE exam_id = ? AND student_id = ?
+      LIMIT 1
+    `, [examId, studentId]);
 
-    if (result.affectedRows === 0) {
+    if (!attempt) {
 
       return res.status(404).json({
 
@@ -1358,11 +1318,13 @@ router.post('/:examId/submit', authMiddleware, async (req, res) => {
       SELECT
           sa.selected_answer,
           q.correct_answer,
-          q.question_type,
-          q.marks
+          qt.type_name AS question_type,
+          q.max_marks AS marks
       FROM student_answers sa
       JOIN questions q
       ON q.question_id = sa.question_id
+      LEFT JOIN question_types qt
+      ON qt.type_id = q.type_id
       WHERE sa.attempt_id = ?
     `, [attempt.attempt_id]);
 
@@ -1396,28 +1358,12 @@ router.post('/:examId/submit', authMiddleware, async (req, res) => {
     SET
         completed_at = NOW(),
         total_score = ?,
-        is_submitted = 1,
-        auto_submitted = 0
+        is_submitted = 1
     WHERE attempt_id = ?
 `, [
       totalScore,
       attempt.attempt_id
     ]);
-
-
-    // ==========================================
-    // Update Assignment
-    // ==========================================
-
-    await conn.execute(`
-      UPDATE exam_assignments
-      SET
-        assignment_status='SUBMITTED'
-      WHERE
-        exam_id=?
-      AND
-        student_id=?
-    `, [examId, studentId]);
 
     return res.json({
 

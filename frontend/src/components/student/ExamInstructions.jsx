@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { requestJson } from "../../global/api";
 
 const ExamInstructions = () => {
 
@@ -15,6 +16,8 @@ const ExamInstructions = () => {
 
     const [starting, setStarting] = useState(false);
 
+    const [error, setError] = useState("");
+
     useEffect(() => {
 
         loadInstructions();
@@ -25,17 +28,7 @@ const ExamInstructions = () => {
 
         try {
 
-            const response = await fetch(
-
-                `http://localhost:5000/api/exams/${examId}/instructions`,
-
-                {
-                    credentials: "include"
-                }
-
-            );
-
-            const data = await response.json();
+            const data = await requestJson(`/api/exams/${examId}/instructions`);
 
             setExam(data.exam);
 
@@ -44,6 +37,7 @@ const ExamInstructions = () => {
         catch (err) {
 
             console.error(err);
+            setError(err.message || "Unable to load exam instructions.");
 
         }
 
@@ -75,19 +69,9 @@ const ExamInstructions = () => {
 
             setStarting(true);
 
-            const response = await fetch(
-                `http://localhost:5000/api/exams/${examId}/start`,
-                {
-                    method: "POST",
-                    credentials: "include",
-                }
-            );
-
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.message || "Unable to start exam");
-            }
+            const data = await requestJson(`/api/exams/${examId}/start`, {
+                method: "POST",
+            });
 
             // Store attempt information
             sessionStorage.setItem(
@@ -126,6 +110,17 @@ const ExamInstructions = () => {
 
         return <h2>Loading...</h2>;
 
+    }
+
+    if (error || !exam) {
+        return (
+            <div className="max-w-5xl mx-auto p-10">
+                <p className="text-red-600">{error || "Exam instructions are unavailable."}</p>
+                <button onClick={() => navigate('/student-dashboard')} className="mt-4 rounded bg-slate-700 px-4 py-2 text-white">
+                    Back to dashboard
+                </button>
+            </div>
+        );
     }
 
     return (

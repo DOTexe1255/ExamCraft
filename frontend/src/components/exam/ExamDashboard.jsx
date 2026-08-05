@@ -308,7 +308,21 @@ const [idleWarningCount, setIdleWarningCount] = useState(0);
       });
 
     };
-    useEffect(() => {
+
+    document.addEventListener(
+      "fullscreenchange",
+      handleFullscreen
+    );
+
+    return () => {
+      document.removeEventListener(
+        "fullscreenchange",
+        handleFullscreen
+      );
+    };
+  }, [handleSubmit, isSubmitted]);
+
+  useEffect(() => {
 
   if (!securitySettings?.block_right_click) {
     return;
@@ -448,21 +462,6 @@ if (
 
 
 
-    document.addEventListener(
-      "fullscreenchange",
-      handleFullscreen
-    );
-
-    return () => {
-
-      document.removeEventListener(
-        "fullscreenchange",
-        handleFullscreen
-      );
-
-    };
-
-  }, [handleSubmit, isSubmitted]);
   useEffect(() => {
 
     const handleVisibility = () => {
@@ -887,7 +886,7 @@ int main() {
     return "NOT_ANSWERED";
 
   };
-const handleSubmit = useCallback(async () => {
+  async function handleSubmit() {
 
   if (submitting) return;
 
@@ -942,11 +941,7 @@ const handleSubmit = useCallback(async () => {
 
   }
 
-}, [
-  answers,
-  examData,
-  submitting,
-]);
+  }
 
   const handleConfirmSubmit = () => {
     setShowConfirm(true);
