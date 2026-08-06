@@ -123,6 +123,7 @@ const buildInitialForm = () => ({
   total_marks: 100,
   passing_marks: 40,
   is_active: true,
+  security_settings: { block_copy_paste: true, block_cut: true, block_right_click: true, block_devtools: true, block_print: true, block_text_selection: true, allow_paste_in_coding: false, auto_submit_on_violation: true },
 });
 
 const buildPayloadQuestions = (questions, sections) => {
@@ -243,6 +244,7 @@ const ExamWorkspace = ({ mode, examId }) => {
             total_marks: Number(exam.total_marks || 100),
             passing_marks: Number(exam.passing_marks || 40),
             is_active: exam.status !== 'draft',
+            security_settings: { ...buildInitialForm().security_settings, ...(exam.security_settings || {}) },
           });
 
           setSections(Array.isArray(exam.sections) && exam.sections.length > 0 ? exam.sections.map(normalizeSection) : [createSection()]);
@@ -396,6 +398,7 @@ const ExamWorkspace = ({ mode, examId }) => {
       institute_id: Number(instituteId),
       department_id: Number(departmentId),
       student_ids: selectedStudentIds,
+      security_settings: formData.security_settings,
     };
 
     setSaving(true);
@@ -570,6 +573,15 @@ const ExamWorkspace = ({ mode, examId }) => {
                 />
                 Activate exam immediately
               </label>
+            </section>
+
+            <section className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
+              <div className="border-b border-slate-100 pb-4"><h2 className="text-lg font-semibold text-slate-900">Security & shortcuts</h2><p className="mt-1 text-sm text-slate-500">Enable or disable browser shortcuts and exam security controls.</p></div>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {[
+                  ['block_copy_paste', 'Disable copy & paste'], ['block_cut', 'Disable cut'], ['block_right_click', 'Disable right click'], ['block_devtools', 'Disable DevTools shortcuts'], ['block_print', 'Disable print shortcut'], ['block_text_selection', 'Disable text selection'], ['allow_paste_in_coding', 'Allow paste in coding'], ['auto_submit_on_violation', 'Auto-submit after warnings'],
+                ].map(([key, label]) => <label key={key} className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-700"><input type="checkbox" checked={Boolean(formData.security_settings?.[key])} onChange={(event) => updateFormField('security_settings', { ...formData.security_settings, [key]: event.target.checked })} className="h-4 w-4" />{label}</label>)}
+              </div>
             </section>
 
             <section className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">

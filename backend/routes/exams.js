@@ -22,6 +22,27 @@ const getTableColumns = async (conn, tableName) => {
   return columns;
 };
 
+const ensureMonitoringColumns = async (conn) => {
+  const columns = await getTableColumns(conn, 'exam_attempts');
+  const required = [
+    ['remaining_seconds', 'INT NULL'],
+    ['current_question', 'INT DEFAULT 0'],
+    ['last_activity', 'DATETIME NULL'],
+    ['tab_switches', 'INT DEFAULT 0'],
+    ['fullscreen_exit_count', 'INT DEFAULT 0'],
+    ['auto_submitted', 'BOOLEAN DEFAULT FALSE'],
+  ];
+
+  for (const [name, definition] of required) {
+    if (!columns.has(name)) {
+      await conn.execute(`ALTER TABLE exam_attempts ADD COLUMN ${name} ${definition}`);
+      columns.add(name);
+    }
+  }
+  tableColumnsCache.set('exam_attempts', columns);
+  return columns;
+};
+
 const parseBool = (value) => value === true || value === 'true' || value === 1 || value === '1';
 
 const parseJsonArray = (value) => {
@@ -603,6 +624,7 @@ router.patch('/:examId', authMiddleware, async (req, res) => {
     question_bank,
     student_ids,
     question_count,
+    security_settings,
   } = req.body;
 
   const examId = Number(req.params.examId);
@@ -738,6 +760,19 @@ router.patch('/:examId', authMiddleware, async (req, res) => {
       await syncExamAssignments(conn, examId, student_ids);
     }
 
+    if (security_settings && typeof security_settings === 'object') {
+      const currentSecurity = (await conn.execute('SELECT * FROM exam_proctoring_settings WHERE exam_id = ? LIMIT 1', [examId]))[0][0] || {};
+      const nextSecurity = { ...currentSecurity, ...security_settings };
+      const settingsColumns = await getTableColumns(conn, 'exam_proctoring_settings');
+      const fields = ['block_copy_paste', 'block_cut', 'block_right_click', 'block_devtools', 'block_print', 'block_text_selection', 'allow_paste_in_coding', 'detect_tab_switch', 'detect_window_blur', 'detect_fullscreen_exit', 'inactivity_timeout_seconds', 'max_idle_warnings', 'auto_submit_on_violation', 'track_mouse_movement', 'track_keyboard_activity'].filter((field) => settingsColumns.has(field));
+      const values = fields.map((field) => nextSecurity[field] ?? false);
+      if (fields.length) {
+        await conn.execute(`INSERT INTO exam_proctoring_settings (exam_id, ${fields.join(', ')}) VALUES (?, ${fields.map(() => '?').join(', ')}) ON DUPLICATE KEY UPDATE ${fields.map((field) => `${field} = VALUES(${field})`).join(', ')}`, [examId, ...values]);
+      }
+    }
+
+    const [[securitySettings]] = await conn.execute('SELECT * FROM exam_proctoring_settings WHERE exam_id = ? LIMIT 1', [examId]);
+
     const exam = await fetchExamDetails(conn, examId, req.user);
 
     return res.json({
@@ -800,8 +835,18 @@ router.get('/:examId/instructions', authMiddleware, async (req, res) => {
 
     const exam = rows[0];
 
+    const [[attempt]] = await conn.execute(`
+      SELECT is_submitted
+      FROM exam_attempts
+      WHERE exam_id = ? AND student_id = ?
+      LIMIT 1
+    `, [examId, req.user.user_id]);
+
     return res.json({
-      exam
+      exam: {
+        ...exam,
+        is_submitted: Boolean(attempt?.is_submitted)
+      }
     });
 
   } catch (error) {
@@ -826,6 +871,7 @@ router.post('/:examId/start', authMiddleware, async (req, res) => {
 
     const examId = Number(req.params.examId);
     const studentId = req.user.user_id;
+    await ensureMonitoringColumns(conn);
 
     // ==========================
     // Check Assignment
@@ -1080,13 +1126,6 @@ router.get('/:examId/status', authMiddleware, async (req, res) => {
         WHERE attempt_id = ?
     `, [attempt.attempt_id]);
 
-      await conn.execute(`
-        UPDATE exam_assignments
-        SET assignment_status='AUTO_SUBMITTED'
-        WHERE exam_id=?
-        AND student_id=?
-    `, [examId, studentId]);
-
       return res.json({
 
         status: "AUTO_SUBMITTED",
@@ -1155,7 +1194,7 @@ router.post('/:examId/heartbeat', authMiddleware, async (req, res) => {
     const examId = Number(req.params.examId);
     const studentId = req.user.user_id;
     const [[attempt]] = await conn.execute(`
-      SELECT attempt_id
+      SELECT attempt_id, is_submitted
       FROM exam_attempts
       WHERE exam_id = ? AND student_id = ?
       LIMIT 1
@@ -1169,6 +1208,46 @@ router.post('/:examId/heartbeat', authMiddleware, async (req, res) => {
 
       });
 
+    }
+
+    if (attempt.is_submitted) {
+      return res.json({ success: true, submitted: true, message: 'This attempt has been submitted.' });
+    }
+
+    const columns = await getTableColumns(conn, 'exam_attempts');
+    const updates = [];
+    const values = [];
+    const setField = (field, value) => {
+      if (columns.has(field)) {
+        updates.push(`${field} = ?`);
+        values.push(value);
+      }
+    };
+
+    setField('remaining_seconds', Number(req.body?.remainingSeconds) || 0);
+    setField('current_question', Number(req.body?.currentQuestion) || 0);
+    setField(columns.has('last_activity_at') ? 'last_activity_at' : 'last_activity', new Date());
+    if (req.body?.tabSwitch) {
+      if (columns.has('tab_switch_count')) updates.push('tab_switch_count = COALESCE(tab_switch_count, 0) + 1');
+      else if (columns.has('tab_switches')) updates.push('tab_switches = COALESCE(tab_switches, 0) + 1');
+    }
+    if (req.body?.fullscreenExit) {
+      updates.push('fullscreen_exit_count = COALESCE(fullscreen_exit_count, 0) + 1');
+    }
+
+    if (updates.length) {
+      values.push(attempt.attempt_id);
+      await conn.execute(`UPDATE exam_attempts SET ${updates.join(', ')} WHERE attempt_id = ?`, values);
+    }
+
+    if (req.body?.violationType) {
+      await conn.execute(
+        `INSERT INTO audit_logs (user_id, action, table_name, record_id, new_values, ip_address, user_agent)
+         VALUES (?, ?, 'exam_attempts', ?, ?, ?, ?)`,
+        [studentId, `EXAM_VIOLATION_${String(req.body.violationType).toUpperCase()}`, attempt.attempt_id,
+          JSON.stringify({ violationType: req.body.violationType, warning: Number(req.body.violationCount) || 1 }),
+          req.ip, req.get('user-agent') || null]
+      );
     }
 
     return res.json({

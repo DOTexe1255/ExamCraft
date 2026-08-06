@@ -32,11 +32,14 @@ const ExamInstructions = () => {
 
             setExam(data.exam);
 
+            if (data.exam?.is_submitted) {
+                setError("This exam has already been submitted.");
+            }
+
         }
 
         catch (err) {
 
-            console.error(err);
             setError(err.message || "Unable to load exam instructions.");
 
         }
@@ -58,7 +61,7 @@ const ExamInstructions = () => {
 
             } catch {
 
-                alert("Please allow Fullscreen Mode to start the exam.");
+                setError("Please allow Fullscreen Mode to start the exam.");
 
                 return;
 
@@ -68,6 +71,7 @@ const ExamInstructions = () => {
         try {
 
             setStarting(true);
+            setError("");
 
             const data = await requestJson(`/api/exams/${examId}/start`, {
                 method: "POST",
@@ -90,11 +94,7 @@ const ExamInstructions = () => {
 
         catch (err) {
 
-            console.error(err);
-
-            alert(
-                err.message || "Unable to start exam."
-            );
+            setError(err.message || "Unable to start exam.");
 
         }
 
@@ -112,7 +112,7 @@ const ExamInstructions = () => {
 
     }
 
-    if (error || !exam) {
+    if (!exam) {
         return (
             <div className="max-w-5xl mx-auto p-10">
                 <p className="text-red-600">{error || "Exam instructions are unavailable."}</p>
@@ -125,39 +125,30 @@ const ExamInstructions = () => {
 
     return (
 
-        <div className="max-w-5xl mx-auto p-10">
-
-            <h1 className="text-3xl font-bold">
+        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 px-4 py-8 sm:px-6 lg:py-12">
+          <main className="mx-auto max-w-4xl overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl">
+            <div className="bg-gradient-to-r from-student-700 to-indigo-700 px-6 py-8 text-white sm:px-10">
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-blue-100">Exam instructions</p>
+              <h1 className="mt-2 text-3xl font-bold sm:text-4xl">
 
                 {exam.title}
 
-            </h1>
+              </h1>
+              <p className="mt-3 max-w-2xl text-blue-100">Read the instructions carefully before entering the exam. Your timer begins after you continue.</p>
+            </div>
 
-            <div className="mt-6 space-y-2">
+            <div className="p-6 sm:p-10">
+            <div className="grid gap-4 sm:grid-cols-3">
 
-                <p>Duration : {exam.duration_minutes} Minutes</p>
+                <div className="rounded-2xl bg-blue-50 p-4 text-blue-950"><p className="text-xs font-semibold uppercase tracking-wide text-blue-600">Duration</p><p className="mt-1 text-lg font-bold">{exam.duration_minutes} minutes</p></div>
 
-                <p>Total Marks : {exam.total_marks}</p>
+                <div className="rounded-2xl bg-emerald-50 p-4 text-emerald-950"><p className="text-xs font-semibold uppercase tracking-wide text-emerald-600">Total marks</p><p className="mt-1 text-lg font-bold">{exam.total_marks}</p></div>
 
-                <p>
-
-                    Start :
-
-                    {exam.start_datetime}
-
-                </p>
-
-                <p>
-
-                    End :
-
-                    {exam.end_datetime}
-
-                </p>
+                <div className="rounded-2xl bg-violet-50 p-4 text-violet-950"><p className="text-xs font-semibold uppercase tracking-wide text-violet-600">Exam window</p><p className="mt-1 text-sm font-bold">Ends: {exam.end_datetime}</p></div>
 
             </div>
 
-            <div className="mt-10">
+            <div className="mt-8 rounded-2xl border border-slate-200 bg-slate-50 p-6">
 
                 <h2 className="text-xl font-semibold">
 
@@ -165,9 +156,9 @@ const ExamInstructions = () => {
 
                 </h2>
 
-                <ul className="list-disc ml-6 mt-4 space-y-2">
+                <ul className="mt-4 space-y-3 text-slate-700">
 
-                    <li>Read every question carefully.</li>
+                    <li>Read every question carefully before answering.</li>
 
                     <li>Do not refresh browser.</li>
 
@@ -183,9 +174,15 @@ const ExamInstructions = () => {
 
             </div>
 
-            <div className="mt-8">
+            <div className="mt-8 border-t border-slate-200 pt-6">
 
-                <label className="flex gap-3">
+                {error && (
+                    <div className="mb-4 rounded border border-red-200 bg-red-50 px-4 py-3 text-red-700" role="alert">
+                        {error}
+                    </div>
+                )}
+
+                <label className="flex items-center gap-3 rounded-xl border border-slate-200 p-4 text-slate-700">
 
                     <input
 
@@ -205,18 +202,20 @@ const ExamInstructions = () => {
 
             <button
 
-                disabled={!accepted || starting}
+                disabled={!accepted || starting || exam.is_submitted}
 
                 onClick={startExam}
 
-                className="mt-8 px-6 py-3 rounded bg-blue-600 text-white disabled:bg-gray-400"
+                className="mt-6 w-full rounded-xl bg-student-600 px-6 py-4 font-semibold text-white shadow-lg transition hover:bg-student-700 disabled:cursor-not-allowed disabled:bg-slate-400"
 
             >
 
-                Agree & Continue
+                {exam.is_submitted ? "Exam Submitted" : starting ? "Starting..." : "Agree & Continue"}
 
             </button>
 
+            </div>
+          </main>
         </div>
 
     );

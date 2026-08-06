@@ -5,6 +5,7 @@ import ExamList from './ExamList';
 import QuickActions from './QuickActions';
 import { requestJson } from '../../global/api';
 import { getStoredAuth } from '../../global/authStorage';
+import LiveMonitoring from './LiveMonitoring';
 
 const DepartmentDashboard = () => {
   const auth = getStoredAuth();
@@ -73,6 +74,7 @@ const DepartmentDashboard = () => {
             />
           </aside>
         </section>
+        <LiveMonitoring />
       </div>
     </main>
   );

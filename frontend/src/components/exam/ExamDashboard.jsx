@@ -2,8 +2,13 @@ import React, { useCallback, useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Editor from '@monaco-editor/react';
 import { requestJson } from '../../global/api';
+import { getStoredAuth } from '../../global/authStorage';
 
-const STORAGE_KEY = 'examcraft_student_attempts';
+const getStorageKey = () => {
+  const auth = getStoredAuth();
+  const userId = auth?.userId ?? auth?.user?.id ?? auth?.user?.user_id ?? 'anonymous';
+  return `examcraft_student_attempts_${userId}`;
+};
 
 const CODE_LANGUAGE_OPTIONS = [
   { value: 'javascript', label: 'JavaScript' },
@@ -17,7 +22,7 @@ const getStoredAttempts = () => {
   if (typeof window === 'undefined') return {};
 
   try {
-    return JSON.parse(window.localStorage.getItem(STORAGE_KEY) || '{}');
+    return JSON.parse(window.localStorage.getItem(getStorageKey()) || '{}');
   } catch {
     return {};
   }
@@ -91,7 +96,9 @@ const [idleWarningCount, setIdleWarningCount] = useState(0);
   const [savedQuestions, setSavedQuestions] = useState({});
   const [statusMessage, setStatusMessage] = useState('');
   const [runResults, setRunResults] = useState({});
+  const [isRunningCode, setIsRunningCode] = useState(false);
   const [securitySettings, setSecuritySettings] = useState(null);
+  const [violationCount, setViolationCount] = useState(0);
 
   const persistAttempt = useCallback((overrides = {}) => {
     if (!examData?.id || typeof window === 'undefined') return;
@@ -110,14 +117,14 @@ const [idleWarningCount, setIdleWarningCount] = useState(0);
     };
 
     storedAttempts[String(examData.id)] = nextState;
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(storedAttempts));
+    window.localStorage.setItem(getStorageKey(), JSON.stringify(storedAttempts));
   }, [answers, attemptCount, currentQuestion, examData?.id, examData?.title, isSubmitted, savedQuestions, timeLeft]);
 
   const sendHeartbeat = useCallback(async (extra = {}) => {
     if (!examData || isSubmitted) return;
 
     try {
-      await requestJson(`/api/exams/${examId}/heartbeat`, {
+      const response = await requestJson(`/api/exams/${examId}/heartbeat`, {
         method: "POST",
         body: JSON.stringify({
           remainingSeconds: timeLeft,
@@ -128,8 +135,12 @@ const [idleWarningCount, setIdleWarningCount] = useState(0);
           ...extra,
         }),
       });
+      if (response?.submitted) {
+        sessionStorage.removeItem('examAttempt');
+        navigate('/student-dashboard', { replace: true });
+      }
     } catch (error) {
-      console.error("Heartbeat failed:", error);
+      setStatusMessage("Connection issue detected. Your answers remain saved on this device.");
     }
   }, [
     examData,
@@ -137,7 +148,25 @@ const [idleWarningCount, setIdleWarningCount] = useState(0);
     timeLeft,
     currentQuestion,
     isSubmitted,
+    navigate,
   ]);
+
+  const recordViolation = useCallback((type, message, extra = {}) => {
+    if (isSubmitted) return;
+
+    setViolationCount((count) => {
+      const next = count + 1;
+      const limit = 3;
+      setStatusMessage(`${message} Warning ${next} / ${limit}.`);
+      sendHeartbeat({ violationType: type, violationCount: next, ...extra });
+
+      if (securitySettings?.auto_submit_on_violation && next >= limit) {
+        setStatusMessage("Maximum security warnings reached. Submitting your exam.");
+        handleSubmit();
+      }
+      return next;
+    });
+  }, [isSubmitted, securitySettings?.auto_submit_on_violation, sendHeartbeat, handleSubmit]);
 
   const fetchExamData = useCallback(async () => {
     try {
@@ -168,7 +197,16 @@ const [idleWarningCount, setIdleWarningCount] = useState(0);
 
       setExamData(preparedExam);
       setSecuritySettings(preparedExam.security_settings);
-      setTimeLeft(Number(existingAttempt?.timeLeft ?? preparedExam.duration * 60));
+      const sessionAttempt = JSON.parse(sessionStorage.getItem('examAttempt') || '{}');
+      const sessionTimeLeft = Number(sessionAttempt?.remainingSeconds);
+      const savedTimeLeft = Number(existingAttempt?.timeLeft);
+      setTimeLeft(
+        Number.isFinite(sessionTimeLeft) && sessionTimeLeft >= 0
+          ? sessionTimeLeft
+          : Number.isFinite(savedTimeLeft) && savedTimeLeft >= 0
+            ? savedTimeLeft
+            : preparedExam.duration * 60
+      );
       setAnswers(existingAttempt?.answers || {});
       setCurrentQuestion(Number(existingAttempt?.currentQuestion || 0));
       setSavedQuestions(existingAttempt?.savedQuestions || {});
@@ -250,7 +288,8 @@ const [idleWarningCount, setIdleWarningCount] = useState(0);
       setTimeLeft((prev) => {
         if (prev <= 1) {
           window.clearInterval(timer);
-          setIsSubmitted(true);
+          setStatusMessage('Time is up. Submitting your exam.');
+          handleSubmit();
           return 0;
         }
         return prev - 1;
@@ -293,15 +332,7 @@ const [idleWarningCount, setIdleWarningCount] = useState(0);
 
         const next = count + 1;
 
-        alert(
-          `Fullscreen exited (${next}/3)`
-        );
-
-        if (next >= 3) {
-
-          handleSubmit();
-
-        }
+        recordViolation('fullscreen_exit', 'Fullscreen mode was exited.', { fullscreenExit: true });
 
         return next;
 
@@ -320,7 +351,7 @@ const [idleWarningCount, setIdleWarningCount] = useState(0);
         handleFullscreen
       );
     };
-  }, [handleSubmit, isSubmitted]);
+  }, [handleSubmit, isSubmitted, recordViolation]);
 
   useEffect(() => {
 
@@ -331,8 +362,7 @@ const [idleWarningCount, setIdleWarningCount] = useState(0);
   const handleContextMenu = (event) => {
 
     event.preventDefault();
-
-    setStatusMessage("Right click is disabled during the exam.");
+    recordViolation('right_click', 'Right click is disabled during the exam.');
 
   };
 
@@ -347,7 +377,7 @@ const [idleWarningCount, setIdleWarningCount] = useState(0);
 
   };
 
-}, [securitySettings]);
+}, [securitySettings, recordViolation]);
 useEffect(() => {
 
   if (!securitySettings) return;
@@ -390,9 +420,7 @@ if (
 
   event.preventDefault();
 
-  setStatusMessage(
-    "Developer tools are disabled during the exam."
-  );
+  recordViolation('devtools', 'Developer tools are disabled during the exam.');
 
   return;
 
@@ -405,9 +433,7 @@ if (
 
   event.preventDefault();
 
-  setStatusMessage(
-    "Printing is disabled during the exam."
-  );
+  recordViolation('print', 'Printing is disabled during the exam.');
 
   return;
 
@@ -429,7 +455,7 @@ if (
       securitySettings.block_copy_paste
     ) {
       event.preventDefault();
-      setStatusMessage("Copy is disabled during the exam.");
+      recordViolation('copy', 'Copy is disabled during the exam.');
       return;
     }
 
@@ -438,7 +464,7 @@ if (
       securitySettings.block_cut
     ) {
       event.preventDefault();
-      setStatusMessage("Cut is disabled during the exam.");
+      recordViolation('cut', 'Cut is disabled during the exam.');
       return;
     }
 
@@ -447,7 +473,7 @@ if (
       securitySettings.block_copy_paste
     ) {
       event.preventDefault();
-      setStatusMessage("Paste is disabled during the exam.");
+      recordViolation('paste', 'Paste is disabled during the exam.');
     }
 
   };
@@ -458,7 +484,24 @@ if (
     document.removeEventListener("keydown", handleKeyDown);
   };
 
-}, [securitySettings, examData, currentQuestion]);
+}, [securitySettings, examData, currentQuestion, recordViolation]);
+
+  useEffect(() => {
+    if (!securitySettings?.block_text_selection) return undefined;
+
+    const preventSelection = (event) => event.preventDefault();
+    const preventDrag = (event) => {
+      event.preventDefault();
+      recordViolation('drag', 'Dragging content is disabled during the exam.');
+    };
+
+    document.addEventListener('selectstart', preventSelection);
+    document.addEventListener('dragstart', preventDrag);
+    return () => {
+      document.removeEventListener('selectstart', preventSelection);
+      document.removeEventListener('dragstart', preventDrag);
+    };
+  }, [securitySettings?.block_text_selection, recordViolation]);
 
 
 
@@ -476,13 +519,7 @@ if (
 
         const next = count + 1;
 
-        alert(`Tab switched (${next}/3)`);
-
-        if (next >= 3) {
-
-          handleSubmit();
-
-        }
+        recordViolation('tab_switch', 'You switched away from the exam tab.', { tabSwitch: true });
 
         return next;
 
@@ -504,7 +541,7 @@ if (
 
     };
 
-  }, [handleSubmit, isSubmitted]);
+  }, [handleSubmit, isSubmitted, recordViolation]);
   useEffect(() => {
 
     if (isSubmitted) return;
@@ -521,15 +558,7 @@ if (
 
                 const next = count + 1;
 
-                alert(`You have been inactive for 2 minutes (${next})`);
-
-                sendHeartbeat({
-                    idleWarning: true,
-                });
-
-                if (next >= 3) {
-                    handleSubmit();
-                }
+                recordViolation('idle', 'You have been inactive for 2 minutes.', { idleWarning: true });
 
                 return next;
 
@@ -559,7 +588,7 @@ if (
 
     };
 
-}, [isSubmitted, handleSubmit, sendHeartbeat]);
+}, [isSubmitted, handleSubmit, sendHeartbeat, recordViolation]);
 
   const question = examData?.questions?.[currentQuestion];
   const minutes = Math.floor(timeLeft / 60);
@@ -743,6 +772,7 @@ int main() {
     }
 
     try {
+      setIsRunningCode(true);
       const results = [];
 
       for (let i = 0; i < question.testCases.length; i++) {
@@ -807,6 +837,8 @@ int main() {
       });
 
       setStatusMessage("Execution failed.");
+    } finally {
+      setIsRunningCode(false);
     }
   };
   const handleNext = () => {
@@ -919,7 +951,7 @@ int main() {
     delete storedAttempts[String(examData.id)];
 
     window.localStorage.setItem(
-      STORAGE_KEY,
+      getStorageKey(),
       JSON.stringify(storedAttempts)
     );
 
@@ -929,9 +961,7 @@ int main() {
 
   catch (error) {
 
-    console.error(error);
-
-    alert(error.message || "Failed to submit exam.");
+    setStatusMessage(error.message || "Failed to submit exam.");
 
   }
 
@@ -968,14 +998,8 @@ int main() {
     if (typeof window !== 'undefined' && examData?.id) {
       const storedAttempts = getStoredAttempts();
       delete storedAttempts[String(examData.id)];
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(storedAttempts));
+      window.localStorage.setItem(getStorageKey(), JSON.stringify(storedAttempts));
     }
-  };
-
-  const handleSaveAndExit = () => {
-    persistAttempt();
-    setStatusMessage('Progress saved. You can resume from the dashboard.');
-    navigate('/student-dashboard');
   };
 
   if (isLoading) {
@@ -1041,9 +1065,9 @@ int main() {
 
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-student-50 to-student-100">
+    <div className="min-h-screen select-none bg-gradient-to-br from-student-50 to-student-100">
       <div className="sticky top-0 z-50 border-b border-student-200 bg-white/80 backdrop-blur-md">
-        <div className="mx-auto max-w-6xl px-6 py-4">
+        <div className="w-full px-4 py-4 sm:px-6 xl:px-10">
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold text-gray-900">{examData.title}</h1>
@@ -1052,7 +1076,7 @@ int main() {
             <div className="flex items-center gap-6">
               <div className="text-right">
                 <div className="text-sm text-gray-500">Time Remaining</div>
-                selected_ans<div
+                <div
                   className={`text-2xl font-mono font-bold transition-all duration-300
 
   ${isCriticalTime
@@ -1063,7 +1087,7 @@ int main() {
 
                         : "text-student-600"
                     }`}
-                >wer
+                >
                   {String(minutes).padStart(2, '0')}:{String(seconds).padStart(2, '0')}
                   {isCriticalTime && (
                     <p className="mt-1 text-xs font-semibold text-red-600 animate-pulse">
@@ -1107,14 +1131,21 @@ int main() {
         </div>
       </div>
 
-      <div className="mx-auto max-w-6xl px-6 py-12">
+      <div className="w-full px-4 py-6 sm:px-6 xl:px-10 xl:py-8">
         {statusMessage && (
           <div className="mb-6 rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-700">
             {statusMessage}
           </div>
         )}
 
-        <div className="mb-8 grid gap-6 lg:grid-cols-[minmax(0,1fr)_280px]">
+        {violationCount > 0 && (
+          <div className="mb-6 flex items-center justify-between rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            <span className="font-semibold">Security warning</span>
+            <span>Warning {violationCount} / 3</span>
+          </div>
+        )}
+
+        <div className="mb-8 grid gap-6 2xl:grid-cols-[minmax(0,1fr)_340px]">
           <div className="rounded-3xl border border-student-100/50 bg-white/70 p-8 shadow-2xl backdrop-blur-sm">
             <div className="mb-8">
               <h2 className="mb-4 text-2xl font-bold text-gray-900">Q{currentQuestion + 1}. {question.title || question.text}</h2>
@@ -1226,9 +1257,10 @@ int main() {
                 <div className="flex flex-wrap gap-3">
                   <button
                     onClick={handleRunCode}
+                    disabled={isRunningCode}
                     className="rounded-2xl border border-cyan-200 bg-cyan-50 px-5 py-3 text-sm font-semibold text-cyan-700 hover:bg-cyan-100"
                   >
-                    Run code
+                    {isRunningCode ? 'Running code...' : 'Run code'}
                   </button>
                   <button
                     onClick={() => setAnswers((current) => ({
@@ -1414,13 +1446,6 @@ int main() {
 
               </button>
               <button
-                onClick={handleSaveAndExit}
-                className="flex items-center justify-center gap-3 rounded-2xl border border-slate-300 bg-slate-50 px-6 py-4 text-lg font-semibold text-slate-700 shadow-sm transition-all duration-300 hover:bg-slate-100"
-              >
-                Save & exit
-              </button>
-
-              <button
                 onClick={handleConfirmSubmit}
                 disabled={Object.keys(answers).length === 0 || submitting}
                 className="flex items-center justify-center gap-3 rounded-2xl bg-gradient-to-r from-student-600 to-student-700 px-10 py-4 text-lg font-bold text-white shadow-2xl transition-all duration-300 hover:-translate-y-1 hover:from-student-700 hover:to-student-800 disabled:cursor-not-allowed disabled:opacity-50"
@@ -1431,15 +1456,6 @@ int main() {
                 {submitting ? "Submitting..." : "Submit Exam"}
               </button>
 
-              <button
-                onClick={handleNext}
-                className="flex items-center justify-center gap-3 rounded-2xl bg-gradient-to-r from-student-500 to-student-600 px-8 py-4 text-lg font-semibold text-white shadow-xl transition-all duration-300 hover:-translate-y-1 hover:from-student-600 hover:to-student-700 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Next
-                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </button>
             </div>
           </div>
 

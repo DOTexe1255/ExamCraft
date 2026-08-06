@@ -4,6 +4,13 @@ const authMiddleware = require('./authMiddleware');
 
 const router = express.Router();
 const requireDepartment = (req, res, next) => req.user.role === 'department' ? next() : res.status(403).json({ message: 'Department administrator access is required' });
+const getTableColumns = async (conn, tableName) => {
+  const [rows] = await conn.execute(
+    'SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?',
+    [tableName]
+  );
+  return new Set(rows.map((row) => row.COLUMN_NAME));
+};
 
 router.get('/', authMiddleware, requireDepartment, async (req, res) => {
   let conn;
@@ -66,6 +73,9 @@ router.get('/live-exams', authMiddleware, async (req, res) => {
         conn = await connectToMySQL();
 
         const departmentId = req.user.department_id;
+        const attemptColumns = await getTableColumns(conn, 'exam_attempts');
+        const submitted = attemptColumns.has('is_submitted') ? 'COALESCE(at.is_submitted, 0)' : '0';
+        const autoSubmitted = attemptColumns.has('auto_submitted') ? 'COALESCE(at.auto_submitted, 0)' : '0';
 
         const [rows] = await conn.execute(`
 
@@ -81,42 +91,21 @@ router.get('/live-exams', authMiddleware, async (req, res) => {
 
                 COUNT(DISTINCT ea.student_id) AS enrolled,
 
-                SUM(
-                    CASE
-                        WHEN ea.assignment_status='STARTED'
-                        THEN 1
-                        ELSE 0
-                    END
-                ) AS started,
+                SUM(CASE WHEN at.attempt_id IS NOT NULL AND ${submitted} = 0 THEN 1 ELSE 0 END) AS started,
 
-                SUM(
-                    CASE
-                        WHEN ea.assignment_status='SUBMITTED'
-                        THEN 1
-                        ELSE 0
-                    END
-                ) AS submitted,
+                SUM(CASE WHEN ${submitted} = 1 AND ${autoSubmitted} = 0 THEN 1 ELSE 0 END) AS submitted,
 
-                SUM(
-                    CASE
-                        WHEN ea.assignment_status='AUTO_SUBMITTED'
-                        THEN 1
-                        ELSE 0
-                    END
-                ) AS auto_submitted,
+                SUM(CASE WHEN ${autoSubmitted} = 1 THEN 1 ELSE 0 END) AS auto_submitted,
 
-                SUM(
-                    CASE
-                        WHEN ea.assignment_status='ENROLLED'
-                        THEN 1
-                        ELSE 0
-                    END
-                ) AS not_started
+                SUM(CASE WHEN at.attempt_id IS NULL THEN 1 ELSE 0 END) AS not_started
 
             FROM exams e
 
             JOIN exam_assignments ea
             ON ea.exam_id=e.exam_id
+
+            LEFT JOIN exam_attempts at
+            ON at.exam_id = ea.exam_id AND at.student_id = ea.student_id
 
             WHERE e.department_id=?
 
@@ -157,6 +146,10 @@ router.get('/exams/:examId/live', authMiddleware, async (req, res) => {
         conn = await connectToMySQL();
 
         const examId = Number(req.params.examId);
+        const attemptColumns = await getTableColumns(conn, 'exam_attempts');
+        const attemptField = (name, fallback = 'NULL') => attemptColumns.has(name) ? `at.${name}` : fallback;
+        const submitted = attemptColumns.has('is_submitted') ? 'COALESCE(at.is_submitted, 0)' : '0';
+        const autoSubmitted = attemptColumns.has('auto_submitted') ? 'COALESCE(at.auto_submitted, 0)' : '0';
 
         const [students] = await conn.execute(`
 
@@ -164,29 +157,40 @@ router.get('/exams/:examId/live', authMiddleware, async (req, res) => {
 
                 u.user_id,
 
-                u.full_name,
+                TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))) AS full_name,
 
                 u.email,
 
-                ea.assignment_status,
+                CASE
+                  WHEN at.attempt_id IS NULL THEN 'ENROLLED'
+                  WHEN ${autoSubmitted} = 1 THEN 'AUTO_SUBMITTED'
+                  WHEN ${submitted} = 1 THEN 'SUBMITTED'
+                  ELSE 'STARTED'
+                END AS assignment_status,
 
                 at.started_at,
 
                 at.completed_at,
 
-                at.current_question,
+                ${attemptField('current_question', '0')} AS current_question,
 
-                at.remaining_seconds,
+                ${attemptField('remaining_seconds', 'NULL')} AS remaining_seconds,
 
-                at.last_activity_at,
+                ${attemptField('last_activity')} AS last_activity_at,
 
-                at.tab_switch_count,
+                COALESCE(${attemptField('tab_switches', '0')}, 0) AS tab_switch_count,
 
-                at.fullscreen_exit_count,
+                ${attemptField('fullscreen_exit_count', '0')} AS fullscreen_exit_count,
+
+                (SELECT COUNT(*) FROM audit_logs al WHERE al.record_id = at.attempt_id AND al.table_name = 'exam_attempts' AND al.action IN ('EXAM_VIOLATION_COPY', 'EXAM_VIOLATION_CUT', 'EXAM_VIOLATION_PASTE')) AS copy_attempt_count,
+
+                (SELECT COUNT(*) FROM audit_logs al WHERE al.record_id = at.attempt_id AND al.table_name = 'exam_attempts' AND al.action = 'EXAM_VIOLATION_DEVTOOLS') AS devtools_attempt_count,
+
+                (SELECT COUNT(*) FROM audit_logs al WHERE al.record_id = at.attempt_id AND al.table_name = 'exam_attempts' AND al.action = 'EXAM_VIOLATION_IDLE') AS idle_warning_count,
 
                 at.total_score,
 
-                at.is_submitted
+                ${submitted} AS is_submitted
 
             FROM exam_assignments ea
 
@@ -199,7 +203,7 @@ router.get('/exams/:examId/live', authMiddleware, async (req, res) => {
 
             WHERE ea.exam_id = ?
 
-            ORDER BY u.full_name
+            ORDER BY u.first_name, u.last_name
 
         `,[examId]);
 
@@ -232,5 +236,32 @@ router.get('/exams/:examId/live', authMiddleware, async (req, res) => {
 
     }
 
+});
+
+router.post('/exams/:examId/students/:studentId/force-submit', authMiddleware, requireDepartment, async (req, res) => {
+  let conn;
+  try {
+    conn = await connectToMySQL();
+    const examId = Number(req.params.examId);
+    const studentId = Number(req.params.studentId);
+    const attemptColumns = await getTableColumns(conn, 'exam_attempts');
+    const [[assignment]] = await conn.execute(
+      `SELECT ea.assignment_id, at.attempt_id
+       FROM exam_assignments ea
+       JOIN exams e ON e.exam_id = ea.exam_id
+       LEFT JOIN exam_attempts at ON at.exam_id = ea.exam_id AND at.student_id = ea.student_id AND at.is_submitted = 0
+       WHERE ea.exam_id = ? AND ea.student_id = ? AND e.department_id = ? LIMIT 1`,
+      [examId, studentId, req.user.department_id]
+    );
+    if (!assignment?.attempt_id) return res.status(404).json({ message: 'An active attempt was not found for this student.' });
+
+    const submissionUpdates = ['is_submitted = 1'];
+    if (attemptColumns.has('auto_submitted')) submissionUpdates.push('auto_submitted = 1');
+    if (attemptColumns.has('completed_at')) submissionUpdates.push('completed_at = NOW()');
+    await conn.execute(`UPDATE exam_attempts SET ${submissionUpdates.join(', ')} WHERE attempt_id = ?`, [assignment.attempt_id]);
+    await conn.execute('INSERT INTO audit_logs (user_id, action, table_name, record_id, new_values) VALUES (?, ?, ?, ?, ?)', [req.user.user_id, 'EXAM_FORCE_SUBMITTED', 'exam_attempts', assignment.attempt_id, JSON.stringify({ examId, studentId })]);
+    return res.json({ success: true, message: 'Exam force-submitted successfully.' });
+  } catch (error) { return res.status(500).json({ message: 'Could not force-submit the exam.', error: error.message }); }
+  finally { if (conn) conn.release(); }
 });
 module.exports = router;
