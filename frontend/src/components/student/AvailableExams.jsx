@@ -1,11 +1,19 @@
 import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { getStoredAuth } from '../../global/authStorage';
+
+const getStorageKey = () => {
+  const auth = getStoredAuth();
+  const userId = auth?.userId ?? auth?.user?.id ?? auth?.user?.user_id ?? 'anonymous';
+
+  return `examcraft_student_attempts_${userId}`;
+};
 
 const getStoredAttempts = () => {
   if (typeof window === 'undefined') return {};
 
   try {
-    return JSON.parse(window.localStorage.getItem('examcraft_student_attempts') || '{}');
+    return JSON.parse(window.localStorage.getItem(getStorageKey()) || '{}');
   } catch {
     return {};
   }
@@ -14,7 +22,7 @@ const getStoredAttempts = () => {
 const statusTone = {
   active: 'bg-emerald-50 text-emerald-700',
   scheduled: 'bg-sky-50 text-sky-700',
-  draft: 'bg-amber-50 text-amber-700',
+  completed: 'bg-slate-100 text-slate-700',
 };
 
 const getExamType = (exam) => {
@@ -72,51 +80,84 @@ const canStartExam = (exam) => {
   }
 };
 
+const getExamEndTime = (exam) => {
+  if (!exam?.start_datetime) return null;
+
+  const startTime = new Date(exam.start_datetime).getTime();
+  const durationMinutes = Number(exam.duration_minutes || 0);
+
+  if (Number.isNaN(startTime) || !Number.isFinite(durationMinutes) || durationMinutes <= 0) {
+    return null;
+  }
+
+  return new Date(startTime + (durationMinutes * 60000));
+};
+
+const isCompletedExam = (exam, savedAttempt) => {
+  const endTime = getExamEndTime(exam);
+  const submitted = Boolean(
+    savedAttempt?.isSubmitted ||
+    exam.assignment_status === 'SUBMITTED' ||
+    exam.assignment_status === 'AUTO_SUBMITTED' ||
+    exam.status === 'completed'
+  );
+
+  return submitted || Boolean(endTime && Date.now() > endTime.getTime());
+};
+
 const AvailableExams = ({ exams, loading }) => {
   const [filter, setFilter] = useState('all');
   const [selectedExamId, setSelectedExamId] = useState(null);
   const navigate = useNavigate();
 
-  const visible = useMemo(
-    () => (filter === 'all' ? exams : exams.filter((exam) => exam.status === filter)),
-    [exams, filter]
-  );
+  const savedAttempts = useMemo(() => getStoredAttempts(), []);
+
+  const visible = useMemo(() => {
+    return exams.filter((exam) => {
+      const savedAttempt = savedAttempts[String(exam.exam_id)];
+      const completed = isCompletedExam(exam, savedAttempt);
+
+      if (filter === 'completed') {
+        return completed;
+      }
+
+      if (filter === 'all') {
+        return !completed && ['active', 'scheduled'].includes(exam.status);
+      }
+
+      return exam.status === filter && !completed;
+    });
+  }, [exams, filter, savedAttempts]);
 
   const selectedExam = useMemo(
     () => exams.find((exam) => Number(exam.exam_id) === Number(selectedExamId)) || null,
     [exams, selectedExamId]
   );
 
-  const savedAttempts = useMemo(() => getStoredAttempts(), [exams]);
   const canStartExam = (exam) => {
-
     const now = new Date();
-
     const start = new Date(exam.start_datetime);
+    const end = getExamEndTime(exam);
 
-    const end = new Date(exam.end_datetime);
-
-    // Already submitted
     if (
-      exam.assignment_status === "SUBMITTED" ||
-      exam.assignment_status === "AUTO_SUBMITTED"
+      exam.assignment_status === 'SUBMITTED' ||
+      exam.assignment_status === 'AUTO_SUBMITTED'
     ) {
       return false;
     }
 
-    // Exam not started yet
-    if (now < start) {
+    if (Number.isNaN(start.getTime()) || now < start) {
       return false;
     }
 
-    // Exam finished
-    if (now > end) {
+    if (end && now > end) {
       return false;
     }
 
     return true;
-
   };
+
+  const filterOptions = ['all', 'active', 'scheduled', 'completed'];
 
   return (
     <section className="rounded-2xl border border-slate-200/80 bg-white shadow-sm">
@@ -126,17 +167,17 @@ const AvailableExams = ({ exams, loading }) => {
             <div className="flex items-center gap-2">
               <h2 className="text-lg font-semibold text-slate-900">Join an exam</h2>
               <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">
-                {exams.length} available
+                {visible.length} available
               </span>
             </div>
             <p className="mt-1 text-sm text-slate-500">
-              Browse all live institute exams, review the details, and enter the exam when it is ready.
+              Browse live institute exams, review the details, and enter the exam when it is ready.
             </p>
           </div>
         </div>
 
         <div className="mt-4 flex gap-2 overflow-x-auto">
-          {['all', 'active', 'scheduled', 'draft'].map((item) => (
+          {filterOptions.map((item) => (
             <button
               key={item}
               onClick={() => setFilter(item)}
@@ -158,6 +199,11 @@ const AvailableExams = ({ exams, loading }) => {
             const isExamOpen = canStartExam(exam);
             const savedAttempt = savedAttempts[String(exam.exam_id)];
             const canResume = Boolean(savedAttempt && !savedAttempt.isSubmitted && Number(savedAttempt.timeLeft || 0) > 0);
+            const completed = isCompletedExam(exam, savedAttempt);
+            const examStatus = completed ? 'completed' : (exam.status || 'scheduled');
+            const actionLabel = completed
+              ? (savedAttempt?.isSubmitted || exam.assignment_status === 'SUBMITTED' || exam.status === 'completed' ? 'Completed' : 'Attempted')
+              : (canResume ? 'Resume Exam' : 'Start Exam');
             return (
               <article key={exam.exam_id} className="px-5 py-5 transition hover:bg-slate-50/80 sm:px-6">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -170,8 +216,8 @@ const AvailableExams = ({ exams, loading }) => {
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <h3 className="truncate font-semibold text-slate-800">{exam.title}</h3>
-                        <span className={`rounded-full px-2 py-0.5 text-xs font-semibold capitalize ${statusTone[exam.status] || statusTone.scheduled}`}>
-                          {exam.status || 'scheduled'}
+                        <span className={`rounded-full px-2 py-0.5 text-xs font-semibold capitalize ${statusTone[examStatus] || statusTone.scheduled}`}>
+                          {examStatus}
                         </span>
                       </div>
                       <p className="mt-1 text-sm text-slate-500">{exam.description || 'No description available.'}</p>
@@ -188,10 +234,10 @@ const AvailableExams = ({ exams, loading }) => {
                       onClick={() => setSelectedExamId(isSelected ? null : exam.exam_id)}
                       className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:border-indigo-300 hover:text-indigo-700"
                     >
-                      {isSelected ? 'Hide details' : 'Enroll now'}
+                      {isSelected ? 'Hide details' : (completed ? 'View details' : 'Enroll now')}
                     </button>
                     <button
-                      disabled={!canStartExam(exam)}
+                      disabled={!canStartExam(exam) || completed}
                       onClick={() =>
                         navigate(`/exam/${exam.exam_id}/instructions`)
                       }
@@ -200,9 +246,7 @@ const AvailableExams = ({ exams, loading }) => {
                           : "bg-gray-400 text-gray-700 cursor-not-allowed"
                         }`}
                     >
-                      {exam.assignment_status === "SUBMITTED"
-                        ? "Submitted"
-                        : "Start Exam"}
+                      {actionLabel}
                     </button>
                   </div>
                 </div>
@@ -229,7 +273,11 @@ const AvailableExams = ({ exams, loading }) => {
         ) : (
           <div className="px-6 py-14 text-center">
             <p className="font-medium text-slate-700">No {filter === 'all' ? '' : filter} exams</p>
-            <p className="mt-1 text-sm text-slate-500">Live or scheduled assessments will appear here.</p>
+            <p className="mt-1 text-sm text-slate-500">
+              {filter === 'completed'
+                ? 'Completed or attempted exams will appear here.'
+                : 'Live or scheduled assessments will appear here.'}
+            </p>
           </div>
         )}
       </div>
