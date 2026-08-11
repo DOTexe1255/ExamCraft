@@ -15,22 +15,27 @@ router.get('/', authMiddleware, requireStudent, async (req, res) => {
     e.title,
     e.description,
     e.start_datetime,
-    NULL AS end_datetime,
+    COALESCE(e.end_datetime, DATE_ADD(e.start_datetime, INTERVAL e.duration_minutes MINUTE)) AS end_datetime,
     e.duration_minutes,
     e.total_marks,
     e.status,
 
     ea.assignment_id,
     ea.assigned_at,
-    'ENROLLED' AS assignment_status,
+    CASE
+      WHEN at.auto_submitted = 1 THEN 'AUTO_SUBMITTED'
+      WHEN at.is_submitted = 1 OR at.completed_at IS NOT NULL THEN 'SUBMITTED'
+      ELSE 'ENROLLED'
+    END AS assignment_status,
 
     TRUE AS allow_late_join,
     NULL AS late_join_until,
 
     at.started_at,
     at.completed_at AS submitted_at,
+    at.is_submitted,
     NULL AS remaining_seconds,
-    FALSE AS auto_submitted
+    COALESCE(at.auto_submitted, FALSE) AS auto_submitted
 
 FROM exam_assignments ea
 

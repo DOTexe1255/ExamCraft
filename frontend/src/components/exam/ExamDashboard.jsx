@@ -986,22 +986,6 @@ int main() {
     await handleSubmit();
   };
 
-  const handleRetake = () => {
-    setIsSubmitted(false);
-    setAnswers({});
-    setCurrentQuestion(0);
-    setSavedQuestions({});
-    setTimeLeft((examData?.duration || 60) * 60);
-    setShowConfirm(false);
-    setStatusMessage('New attempt started.');
-
-    if (typeof window !== 'undefined' && examData?.id) {
-      const storedAttempts = getStoredAttempts();
-      delete storedAttempts[String(examData.id)];
-      window.localStorage.setItem(getStorageKey(), JSON.stringify(storedAttempts));
-    }
-  };
-
   if (isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-student-50 to-student-100 p-6">
@@ -1024,13 +1008,7 @@ int main() {
           </div>
           <h1 className="mb-4 text-3xl font-bold text-gray-900">Exam Submitted Successfully!</h1>
           <p className="mb-8 text-lg text-gray-600">Your answers have been recorded. Results will be available soon.</p>
-          <div className="flex flex-col justify-center gap-3 sm:flex-row">
-            <button
-              onClick={handleRetake}
-              className="rounded-2xl border border-student-300 px-8 py-3 text-lg font-semibold text-student-700 shadow-sm transition-all duration-300 hover:bg-student-50"
-            >
-              Re-attempt exam
-            </button>
+          <div className="flex justify-center">
             <button
               onClick={() => navigate('/student-dashboard')}
               className="rounded-2xl bg-student-600 px-8 py-3 text-lg font-semibold text-white shadow-xl transition-all duration-300 hover:bg-student-700"

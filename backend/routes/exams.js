@@ -67,7 +67,7 @@ const parseJsonArray = (value) => {
 };
 
 const extractInstructionNumber = (instructions, label) => {
-  const match = String(instructions || '').match(new RegExp(`${label}:\s*([0-9]+)`, 'i'));
+  const match = String(instructions || '').match(new RegExp(`${label}:\\s*([0-9]+)`, 'i'));
   return match ? Number(match[1]) : null;
 };
 
@@ -97,6 +97,11 @@ const syncQuestionBankGroup = async (conn, {
   createdBy,
 }) => {
   const groupColumns = await getTableColumns(conn, 'question_bank_groups');
+  // Older installations can exist without the exam-linking columns. Do not make
+  // saving an exam fail just because the optional reusable-bank feature is absent.
+  if (!groupColumns.has('source_exam_id')) {
+    return null;
+  }
   const [existingRows] = await conn.execute(
     'SELECT question_bank_group_id FROM question_bank_groups WHERE source_exam_id = ? LIMIT 1',
     [examId]
@@ -123,8 +128,13 @@ const syncQuestionBankGroup = async (conn, {
     insertValues.push(domainLabel ? String(domainLabel).trim() : null);
   }
 
-  insertColumns.push('source_exam_id', 'source_type');
-  insertValues.push(examId, 'exam');
+  insertColumns.push('source_exam_id');
+  insertValues.push(examId);
+
+  if (groupColumns.has('source_type')) {
+    insertColumns.push('source_type');
+    insertValues.push('exam');
+  }
 
   if (includeExamMode) {
     insertColumns.push('exam_mode');
@@ -170,7 +180,9 @@ const syncQuestionBankGroup = async (conn, {
       updateValues.push(sectionJson);
     }
 
-    updateParts.push('updated_at = CURRENT_TIMESTAMP');
+    if (groupColumns.has('updated_at')) {
+      updateParts.push('updated_at = CURRENT_TIMESTAMP');
+    }
     updateValues.push(existingRows[0].question_bank_group_id);
 
     await conn.execute(
@@ -202,10 +214,36 @@ const syncExamAssignments = async (conn, examId, studentIds) => {
 
   const uniqueStudentIds = [...new Set(studentIds.map((value) => Number(value)).filter((value) => Number.isFinite(value) && value > 0))];
 
-  await conn.execute('DELETE FROM exam_assignments WHERE exam_id = ?', [examId]);
+  // An attempt references its assignment. Deleting every assignment and adding
+  // it back breaks the foreign key as soon as even one student has started the
+  // exam. Preserve those historical assignments and only remove unattempted
+  // students that were deselected.
+  const deleteParams = [examId];
+  let deleteQuery = `
+    DELETE ass
+    FROM exam_assignments ass
+    LEFT JOIN exam_attempts att ON att.assignment_id = ass.assignment_id
+    WHERE ass.exam_id = ?
+      AND att.assignment_id IS NULL
+  `;
+
+  if (uniqueStudentIds.length) {
+    deleteQuery += ` AND ass.student_id NOT IN (${uniqueStudentIds.map(() => '?').join(', ')})`;
+    deleteParams.push(...uniqueStudentIds);
+  }
+
+  await conn.execute(deleteQuery, deleteParams);
+
+  const [existingAssignments] = await conn.execute(
+    'SELECT student_id FROM exam_assignments WHERE exam_id = ?',
+    [examId]
+  );
+  const existingStudentIds = new Set(existingAssignments.map((row) => Number(row.student_id)));
 
   for (const studentId of uniqueStudentIds) {
-    await conn.execute('INSERT INTO exam_assignments (exam_id, student_id) VALUES (?, ?)', [examId, studentId]);
+    if (!existingStudentIds.has(studentId)) {
+      await conn.execute('INSERT INTO exam_assignments (exam_id, student_id) VALUES (?, ?)', [examId, studentId]);
+    }
   }
 };
 
@@ -227,6 +265,7 @@ const fetchExamDetails = async (conn, examId, user) => {
     'created_at',
   ];
 
+  if (examColumns.has('end_datetime')) selectColumns.push('end_datetime');
   if (examColumns.has('exam_mode')) selectColumns.push('exam_mode');
   if (examColumns.has('subject_label')) selectColumns.push('subject_label');
   if (examColumns.has('domain_label')) selectColumns.push('domain_label');
@@ -250,14 +289,23 @@ const fetchExamDetails = async (conn, examId, user) => {
     return null;
   }
 
-  const [groupRows] = await conn.execute(
-    `SELECT question_bank_group_id, questions_json, sections_json, question_count, subject_label, domain_label, exam_mode
-     FROM question_bank_groups
-     WHERE source_exam_id = ?
-     ORDER BY updated_at DESC
-     LIMIT 1`,
-    [examId]
-  );
+  const groupColumns = await getTableColumns(conn, 'question_bank_groups');
+  let groupRows = [];
+  if (groupColumns.has('source_exam_id')) {
+    const groupSelectColumns = ['question_bank_group_id', 'questions_json'];
+    for (const column of ['sections_json', 'question_count', 'subject_label', 'domain_label', 'exam_mode']) {
+      if (groupColumns.has(column)) groupSelectColumns.push(column);
+    }
+    const orderColumn = groupColumns.has('updated_at') ? 'updated_at DESC' : 'question_bank_group_id DESC';
+    [groupRows] = await conn.execute(
+      `SELECT ${groupSelectColumns.join(', ')}
+       FROM question_bank_groups
+       WHERE source_exam_id = ?
+       ORDER BY ${orderColumn}
+       LIMIT 1`,
+      [examId]
+    );
+  }
 
   const [assignmentRows] = await conn.execute(
     `SELECT ass.student_id, u.first_name, u.last_name, u.email
@@ -305,6 +353,19 @@ const toUtcDateFromLocalInput = (value, timezoneOffsetMinutes) => {
 const toMysqlUtcString = (date) => date.toISOString().slice(0, 19).replace('T', ' ');
 
 const normalizeJsonArray = (value) => (Array.isArray(value) ? value : []);
+
+const getExamEndDatetime = (startDatetime, durationMinutes) => {
+  const duration = Number(durationMinutes);
+  if (!startDatetime || !Number.isFinite(duration) || duration <= 0) return null;
+
+  const endDatetime = new Date(startDatetime.getTime() + (duration * 60 * 1000));
+  return Number.isNaN(endDatetime.getTime()) ? null : endDatetime;
+};
+
+const extractInstructionValue = (instructions, label) => {
+  const match = String(instructions || '').match(new RegExp(`${label}:\\s*(.+)`, 'i'));
+  return match ? match[1].trim() : null;
+};
 
 router.get('/', authMiddleware, async (req, res) => {
   let conn;
@@ -371,6 +432,11 @@ router.post('/', authMiddleware, async (req, res) => {
     });
   }
 
+  const requestedDuration = Number(duration);
+  if (!Number.isFinite(requestedDuration) || requestedDuration <= 0 || !Number.isInteger(requestedDuration)) {
+    return res.status(400).json({ message: 'duration must be a whole number of minutes greater than zero' });
+  }
+
   const resolvedInstituteId = Number(req.user.institute_id || institute_id);
   const resolvedDepartmentId = Number(
     req.user.role === 'department' ? req.user.department_id : department_id
@@ -385,6 +451,12 @@ router.post('/', authMiddleware, async (req, res) => {
   const startDatetime = toUtcDateFromLocalInput(start_date, timezone_offset_minutes);
   if (!startDatetime || Number.isNaN(startDatetime.getTime())) {
     return res.status(400).json({ message: 'Invalid start_date' });
+  }
+  const requestedEndDatetime = end_date
+    ? toUtcDateFromLocalInput(end_date, timezone_offset_minutes)
+    : null;
+  if (end_date && (!requestedEndDatetime || Number.isNaN(requestedEndDatetime.getTime()) || requestedEndDatetime <= startDatetime)) {
+    return res.status(400).json({ message: 'End date and time must be after the start date and time' });
   }
 
   const status = parseBool(is_active)
@@ -434,6 +506,7 @@ router.post('/', authMiddleware, async (req, res) => {
   try {
     conn = await connectToMySQL();
     const examColumns = await getTableColumns(conn, 'exams');
+    const endDatetime = requestedEndDatetime || getExamEndDatetime(startDatetime, requestedDuration);
     const insertColumns = ['institute_id', 'department_id', 'title', 'description', 'start_datetime', 'duration_minutes', 'total_marks', 'max_attempts', 'status', 'seb_required', 'seb_quit_password', 'instructions', 'created_by'];
     const insertValues = [
       resolvedInstituteId,
@@ -441,7 +514,7 @@ router.post('/', authMiddleware, async (req, res) => {
       title.trim(),
       description.trim(),
       toMysqlUtcString(startDatetime),
-      Number(duration),
+      requestedDuration,
       Number(total_marks),
       1,
       status,
@@ -450,6 +523,11 @@ router.post('/', authMiddleware, async (req, res) => {
       instructions || null,
       req.user.user_id,
     ];
+
+    if (examColumns.has('end_datetime') && endDatetime) {
+      insertColumns.push('end_datetime');
+      insertValues.push(toMysqlUtcString(endDatetime));
+    }
 
     if (examColumns.has('exam_mode')) {
       insertColumns.push('exam_mode');
@@ -553,7 +631,7 @@ router.post('/', authMiddleware, async (req, res) => {
         title: title.trim(),
         description: description.trim(),
         start_datetime: startDatetime.toISOString(),
-        duration_minutes: Number(duration),
+        duration_minutes: requestedDuration,
         total_marks: Number(total_marks),
         status,
         exam_mode: resolvedExamMode,
@@ -597,7 +675,12 @@ router.get('/:examId', authMiddleware, async (req, res) => {
       return res.status(404).json({ message: 'Exam not found' });
     }
 
-    return res.json({ exam });
+    return res.json({
+      exam: {
+        ...exam,
+        security_settings: securitySettings || null,
+      },
+    });
   } catch (error) {
     console.error('Load exam details error:', error);
     return res.status(500).json({ message: 'Database error', error: error.message });
@@ -617,6 +700,7 @@ router.patch('/:examId', authMiddleware, async (req, res) => {
     domain_label,
     sections,
     status,
+    is_active,
     duration,
     total_marks,
     passing_marks,
@@ -633,6 +717,7 @@ router.patch('/:examId', authMiddleware, async (req, res) => {
   }
 
   let conn;
+  let transactionStarted = false;
 
   try {
     conn = await connectToMySQL();
@@ -649,21 +734,37 @@ router.patch('/:examId', authMiddleware, async (req, res) => {
     const resolvedTitle = typeof title === 'string' ? title.trim() : currentExam.title;
     const resolvedDescription = typeof description === 'string' ? description.trim() : currentExam.description;
     const resolvedStartDate = typeof start_date === 'string' && start_date.trim() ? start_date : null;
+    const resolvedEndDate = typeof end_date === 'string' && end_date.trim() ? end_date : null;
     const resolvedDuration = Number(duration || currentExam.duration_minutes);
     const resolvedTotalMarks = Number(total_marks || currentExam.total_marks);
     const resolvedPassingMarks = Number.isFinite(Number(passing_marks)) ? Number(passing_marks) : currentExam.passing_marks;
     const resolvedSubjectLabel = typeof subject_label === 'string' ? subject_label.trim() : currentExam.subject_label;
     const resolvedDomainLabel = typeof domain_label === 'string' ? domain_label.trim() : currentExam.domain_label;
-    const resolvedStatus = typeof status === 'string' && ['draft', 'scheduled', 'active', 'completed', 'cancelled'].includes(status) ? status : null;
+    const currentStartDatetime = new Date(currentExam.start_datetime);
+    const effectiveStartDatetime = resolvedStartDate
+      ? toUtcDateFromLocalInput(resolvedStartDate, timezone_offset_minutes)
+      : currentStartDatetime;
+    const resolvedStatus = typeof status === 'string' && ['draft', 'scheduled', 'active', 'completed', 'cancelled'].includes(status)
+      ? status
+      : (is_active === undefined ? null : (parseBool(is_active) ? (effectiveStartDatetime <= new Date() ? 'active' : 'scheduled') : 'draft'));
+    if (duration !== undefined && (!Number.isFinite(Number(duration)) || Number(duration) <= 0 || !Number.isInteger(Number(duration)))) {
+      return res.status(400).json({ message: 'duration must be a whole number of minutes greater than zero' });
+    }
+    const requestedEndDatetime = resolvedEndDate
+      ? toUtcDateFromLocalInput(resolvedEndDate, timezone_offset_minutes)
+      : null;
+    if (resolvedEndDate && (!requestedEndDatetime || Number.isNaN(requestedEndDatetime.getTime()) || requestedEndDatetime <= effectiveStartDatetime)) {
+      return res.status(400).json({ message: 'End date and time must be after the start date and time' });
+    }
 
     const nextInstructions = buildInstructions({
       questionCount: question_count || normalizedQuestionBank.length,
-      examType: null,
+      examType: extractInstructionValue(currentExam.instructions, 'Exam type'),
       examMode: resolvedExamMode,
       subjectLabel: resolvedSubjectLabel,
       domainLabel: resolvedDomainLabel,
       passingMarks: resolvedPassingMarks,
-      endDate: end_date,
+      endDate: resolvedEndDate || currentExam.end_datetime || null,
       sections: normalizedSections,
       questionBank: normalizedQuestionBank,
     });
@@ -699,6 +800,13 @@ router.patch('/:examId', authMiddleware, async (req, res) => {
     if (Number.isFinite(resolvedDuration) && resolvedDuration > 0) {
       updates.push('duration_minutes = ?');
       params.push(resolvedDuration);
+    }
+
+    const endDatetime = requestedEndDatetime
+      || (currentExam.end_datetime ? new Date(currentExam.end_datetime) : getExamEndDatetime(effectiveStartDatetime, resolvedDuration));
+    if (examColumns.has('end_datetime') && endDatetime) {
+      updates.push('end_datetime = ?');
+      params.push(toMysqlUtcString(endDatetime));
     }
 
     if (Number.isFinite(resolvedTotalMarks) && resolvedTotalMarks > 0) {
@@ -740,6 +848,8 @@ router.patch('/:examId', authMiddleware, async (req, res) => {
 
     params.push(examId);
 
+    await conn.beginTransaction();
+    transactionStarted = true;
     await conn.execute(`UPDATE exams SET ${updates.join(', ')} WHERE exam_id = ?`, params);
 
     await syncQuestionBankGroup(conn, {
@@ -775,6 +885,9 @@ router.patch('/:examId', authMiddleware, async (req, res) => {
 
     const exam = await fetchExamDetails(conn, examId, req.user);
 
+    await conn.commit();
+    transactionStarted = false;
+
     return res.json({
       exam: {
         ...exam,
@@ -783,7 +896,17 @@ router.patch('/:examId', authMiddleware, async (req, res) => {
     });
   } catch (error) {
     console.error('Update exam error:', error);
-    return res.status(500).json({ message: 'Database error', error: error.message });
+    if (conn && transactionStarted) {
+      try {
+        await conn.rollback();
+      } catch (rollbackError) {
+        console.error('Update exam rollback error:', rollbackError);
+      }
+    }
+    return res.status(500).json({
+      message: `Could not save exam settings: ${error.message}`,
+      error: error.message,
+    });
   } finally {
     if (conn) conn.release();
   }
@@ -812,20 +935,25 @@ router.get('/:examId/instructions', authMiddleware, async (req, res) => {
 
     const examId = Number(req.params.examId);
 
+    if (req.user.role !== 'student') {
+      return res.status(403).json({ message: 'Student access is required' });
+    }
+
     const [rows] = await conn.execute(`
       SELECT
-        exam_id,
+        e.exam_id,
         title,
         description,
         instructions,
         duration_minutes,
         total_marks,
         start_datetime,
-        end_datetime
-      FROM exams
-      WHERE exam_id = ?
+        COALESCE(end_datetime, DATE_ADD(start_datetime, INTERVAL duration_minutes MINUTE)) AS end_datetime
+      FROM exams e
+      JOIN exam_assignments ea ON ea.exam_id = e.exam_id AND ea.student_id = ?
+      WHERE e.exam_id = ?
       LIMIT 1
-    `, [examId]);
+    `, [req.user.user_id, examId]);
 
     if (!rows.length) {
       return res.status(404).json({
@@ -916,7 +1044,10 @@ router.post('/:examId/start', authMiddleware, async (req, res) => {
       });
     }
 
-    if (now > new Date(exam.end_datetime)) {
+    const examEnd = exam.end_datetime
+      ? new Date(exam.end_datetime)
+      : getExamEndDatetime(new Date(exam.start_datetime), exam.duration_minutes);
+    if (examEnd && now > examEnd) {
       return res.status(400).json({
         message: "Exam has already ended."
       });
@@ -952,14 +1083,26 @@ router.post('/:examId/start', authMiddleware, async (req, res) => {
 
       const started = new Date(attempt.started_at);
 
-      const elapsed = Math.floor(
-        (Date.now() - started.getTime()) / 1000
-      );
-
       const remainingSeconds = Math.max(
         0,
-        exam.duration_minutes * 60 - elapsed
+        Math.floor((Math.min(
+          getExamEndDatetime(started, exam.duration_minutes).getTime(),
+          examEnd ? examEnd.getTime() : Number.POSITIVE_INFINITY
+        ) - Date.now()) / 1000)
       );
+
+      if (remainingSeconds <= 0) {
+        await conn.execute(
+          `UPDATE exam_attempts
+           SET completed_at = NOW(), is_submitted = 1, auto_submitted = 1
+           WHERE attempt_id = ?`,
+          [attempt.attempt_id]
+        );
+        return res.status(400).json({
+          success: false,
+          message: 'Your exam duration has ended and the attempt was submitted.'
+        });
+      }
 
       return res.json({
 
@@ -1093,8 +1236,9 @@ router.get('/:examId/status', authMiddleware, async (req, res) => {
         exam.duration_minutes * 60 * 1000
       );
 
-    const examEnd =
-      new Date(exam.end_datetime);
+    const examEnd = exam.end_datetime
+      ? new Date(exam.end_datetime)
+      : durationEnd;
 
     const finalEnd =
       durationEnd < examEnd

@@ -101,16 +101,12 @@ const normalizeSection = (section, index) => ({
   section_type: section?.section_type || 'custom',
 });
 
-const getDurationMinutes = (startValue, endValue) => {
-  const start = new Date(startValue);
-  const end = new Date(endValue);
-
-  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
-    return null;
-  }
-
-  return Math.max(1, Math.round((end.getTime() - start.getTime()) / 60000));
+const splitDuration = (durationMinutes) => {
+  const total = Math.max(1, Number(durationMinutes) || 60);
+  return { hours: Math.floor(total / 60), minutes: total % 60 };
 };
+
+const getDurationMinutes = (hours, minutes) => (Number(hours || 0) * 60) + Number(minutes || 0);
 
 const buildInitialForm = () => ({
   title: '',
@@ -120,6 +116,8 @@ const buildInitialForm = () => ({
   domain_label: '',
   start_date: '',
   end_date: '',
+  duration_hours: 1,
+  duration_minutes: 0,
   total_marks: 100,
   passing_marks: 40,
   is_active: true,
@@ -229,9 +227,7 @@ const ExamWorkspace = ({ mode, examId }) => {
           const exam = examResponse.exam;
           const startDate = toLocalDatetimeValue(exam.start_datetime);
           const durationMinutes = Number(exam.duration_minutes || 60);
-          const endDate = startDate
-            ? new Date(new Date(startDate).getTime() + durationMinutes * 60000).toISOString().slice(0, 16)
-            : '';
+          const duration = splitDuration(durationMinutes);
 
           setFormData({
             title: exam.title || '',
@@ -240,7 +236,9 @@ const ExamWorkspace = ({ mode, examId }) => {
             subject_label: exam.subject_label || '',
             domain_label: exam.domain_label || '',
             start_date: startDate,
-            end_date: endDate,
+            end_date: toLocalDatetimeValue(exam.end_datetime),
+            duration_hours: duration.hours,
+            duration_minutes: duration.minutes,
             total_marks: Number(exam.total_marks || 100),
             passing_marks: Number(exam.passing_marks || 40),
             is_active: exam.status !== 'draft',
@@ -347,13 +345,21 @@ const ExamWorkspace = ({ mode, examId }) => {
       return 'Description is required.';
     }
 
-    if (!formData.start_date || !formData.end_date) {
-      return 'Start and end date are required.';
+    if (!formData.start_date) {
+      return 'Start date and time are required.';
     }
 
-    const durationMinutes = getDurationMinutes(formData.start_date, formData.end_date);
-    if (!durationMinutes || durationMinutes < 1) {
-      return 'End time must be after start time.';
+    if (!formData.end_date) {
+      return 'Exam end date and time are required.';
+    }
+
+    if (new Date(formData.end_date) <= new Date(formData.start_date)) {
+      return 'Exam end date and time must be after the start date and time.';
+    }
+
+    const durationMinutes = getDurationMinutes(formData.duration_hours, formData.duration_minutes);
+    if (!Number.isInteger(Number(formData.duration_hours)) || Number(formData.duration_hours) < 0 || !Number.isInteger(Number(formData.duration_minutes)) || Number(formData.duration_minutes) < 0 || Number(formData.duration_minutes) > 59 || !durationMinutes || durationMinutes < 1) {
+      return 'Exam duration must be at least 1 minute.';
     }
 
     if (Number(formData.total_marks) <= 0) {
@@ -372,7 +378,7 @@ const ExamWorkspace = ({ mode, examId }) => {
       return;
     }
 
-    const durationMinutes = getDurationMinutes(formData.start_date, formData.end_date);
+    const durationMinutes = getDurationMinutes(formData.duration_hours, formData.duration_minutes);
     if (!durationMinutes) {
       setError('Unable to calculate exam duration.');
       return;
@@ -555,13 +561,43 @@ const ExamWorkspace = ({ mode, examId }) => {
               </div>
 
               <div>
-                <label className="mb-2 block text-sm font-medium text-slate-700">End Date & Time</label>
+                <label className="mb-2 block text-sm font-medium text-slate-700">Exam End Date & Time</label>
                 <input
                   type="datetime-local"
                   value={formData.end_date}
+                  min={formData.start_date || undefined}
                   onChange={(event) => updateFormField('end_date', event.target.value)}
                   className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-cyan-400 focus:ring-4 focus:ring-cyan-100"
                 />
+                <p className="mt-1 text-xs text-slate-500">Students can start the exam only within this window.</p>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-medium text-slate-700">Exam Duration</label>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="mb-1 block text-xs text-slate-500">Hours</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={formData.duration_hours}
+                      onChange={(event) => updateFormField('duration_hours', event.target.value)}
+                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-cyan-400 focus:ring-4 focus:ring-cyan-100"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs text-slate-500">Minutes</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="59"
+                      value={formData.duration_minutes}
+                      onChange={(event) => updateFormField('duration_minutes', event.target.value)}
+                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-cyan-400 focus:ring-4 focus:ring-cyan-100"
+                    />
+                  </div>
+                </div>
+                <p className="mt-1 text-xs text-slate-500">This is each student's attempt time; it is separate from the exam end date above.</p>
               </div>
 
               <label className="flex items-center gap-3 rounded-2xl bg-white px-4 py-3 text-sm font-medium text-slate-700 shadow-sm lg:col-span-2">
