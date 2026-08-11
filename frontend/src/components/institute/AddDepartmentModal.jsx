@@ -62,6 +62,10 @@ const AddDepartmentModal = ({ isOpen, onClose, onSubmit, instituteId }) => {
       nextErrors.head_password = 'Password must be at least 6 characters';
     }
 
+    if (!formData.head_phone.trim()) {
+      nextErrors.head_phone = 'Phone number is required';
+    }
+
     setErrors(nextErrors);
     return Object.keys(nextErrors).length === 0;
   };
@@ -101,7 +105,7 @@ const AddDepartmentModal = ({ isOpen, onClose, onSubmit, instituteId }) => {
         role: 'department',
         institute_id: instituteId,
         department_id: null, // Set after department creation
-        phone: formData.head_phone.trim() || null
+        phone: formData.head_phone.trim()
       } : null;
 
       await onSubmit({ departmentData, departmentAdminData });
@@ -258,7 +262,7 @@ const AddDepartmentModal = ({ isOpen, onClose, onSubmit, instituteId }) => {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2" htmlFor="head_phone">
-                Phone (Optional)
+                Phone *
               </label>
               <input
                 id="head_phone"
@@ -266,10 +270,12 @@ const AddDepartmentModal = ({ isOpen, onClose, onSubmit, instituteId }) => {
                 name="head_phone"
                 value={formData.head_phone}
                 onChange={handleInputChange}
+                required
                 maxLength={15}
                 className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-institute-500 focus:border-institute-500 transition-all duration-200 text-sm"
                 placeholder="+91 98765 43210"
               />
+              {errors.head_phone && <p className="mt-1 text-sm text-red-600">{errors.head_phone}</p>}
             </div>
 
             <div>

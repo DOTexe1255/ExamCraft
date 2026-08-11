@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 
+const CURRENT_YEAR = new Date().getFullYear();
+
 const AddStudentModal = ({ isOpen, onClose, onSubmit, instituteId, departmentId }) => {
   const [formData, setFormData] = useState({
     first_name: '',
@@ -7,7 +9,8 @@ const AddStudentModal = ({ isOpen, onClose, onSubmit, instituteId, departmentId 
     email: '',
     student_id: '',
     phone: '',
-    enrollment_year: '',
+    enrollment_year: String(CURRENT_YEAR),
+    semester: '1',
     password: ''
   });
   const [showPassword, setShowPassword] = useState(false);
@@ -23,7 +26,8 @@ const AddStudentModal = ({ isOpen, onClose, onSubmit, instituteId, departmentId 
         email: '',
         student_id: '',
         phone: '',
-        enrollment_year: '',
+        enrollment_year: String(CURRENT_YEAR),
+        semester: '1',
         password: ''
       });
       setErrors({});
@@ -47,7 +51,13 @@ const AddStudentModal = ({ isOpen, onClose, onSubmit, instituteId, departmentId 
     if (!formData.student_id.trim()) {
       newErrors.student_id = 'Student ID is required';
     }
-    if (formData.password && formData.password.length < 6) {
+    if (!formData.phone.trim()) {
+      newErrors.phone = 'Phone number is required';
+    }
+    if (!Number.isInteger(Number(formData.semester)) || Number(formData.semester) < 1 || Number(formData.semester) > 12) {
+      newErrors.semester = 'Please select a semester between 1 and 12';
+    }
+    if (!formData.password || formData.password.length < 6) {
       newErrors.password = 'Password must be at least 6 characters';
     }
 
@@ -79,11 +89,12 @@ const AddStudentModal = ({ isOpen, onClose, onSubmit, instituteId, departmentId 
         first_name: formData.first_name.trim(),
         last_name: formData.last_name.trim(),
         email: formData.email.trim(),
-        password: (formData.password || '').trim() || 'Student@1234',
+        password: formData.password.trim(),
         role: 'student',
         institute_id: Number(instituteId),
         department_id: Number(departmentId),
-        phone: formData.phone.trim() || null
+        phone: formData.phone.trim(),
+        semester: Number(formData.semester)
       };
 
       if (typeof onSubmit === 'function') {
@@ -156,6 +167,23 @@ const AddStudentModal = ({ isOpen, onClose, onSubmit, instituteId, departmentId 
           </div>
 
           <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2" htmlFor="semester">
+              Current Semester *
+            </label>
+            <select
+              id="semester"
+              name="semester"
+              value={formData.semester}
+              onChange={handleInputChange}
+              required
+              className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-teacher-500 transition-all duration-200 text-sm ${errors.semester ? 'border-red-300 focus:border-red-500 focus:ring-red-500' : 'border-gray-200 focus:border-teacher-500'}`}
+            >
+              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((semester) => <option key={semester} value={semester}>Semester {semester}</option>)}
+            </select>
+            {errors.semester && <p className="mt-1 text-sm text-red-600">{errors.semester}</p>}
+          </div>
+
+          <div>
             <label className="block text-sm font-medium text-gray-700 mb-2" htmlFor="email">
               Email *
             </label>
@@ -196,7 +224,7 @@ const AddStudentModal = ({ isOpen, onClose, onSubmit, instituteId, departmentId 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2" htmlFor="phone">
-                Phone (Optional)
+                Phone *
               </label>
               <input
                 id="phone"
@@ -204,9 +232,11 @@ const AddStudentModal = ({ isOpen, onClose, onSubmit, instituteId, departmentId 
                 name="phone"
                 value={formData.phone}
                 onChange={handleInputChange}
+                required
                 className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teacher-500 focus:border-teacher-500 transition-all duration-200 text-sm"
                 placeholder="+91 98765 43210"
               />
+              {errors.phone && <p className="mt-1 text-sm text-red-600">{errors.phone}</p>}
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2" htmlFor="enrollment_year">
@@ -218,8 +248,8 @@ const AddStudentModal = ({ isOpen, onClose, onSubmit, instituteId, departmentId 
                 name="enrollment_year"
                 value={formData.enrollment_year}
                 onChange={handleInputChange}
-                min="1900"
-                max="2030"
+                min="2000"
+                max={CURRENT_YEAR}
                 className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teacher-500 focus:border-teacher-500 transition-all duration-200 text-sm"
                 placeholder="e.g., 2023"
               />
@@ -228,7 +258,7 @@ const AddStudentModal = ({ isOpen, onClose, onSubmit, instituteId, departmentId 
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2" htmlFor="password">
-              Initial Password (Optional)
+              Initial Password *
             </label>
             <div className="relative">
               <input
@@ -237,8 +267,9 @@ const AddStudentModal = ({ isOpen, onClose, onSubmit, instituteId, departmentId 
                 name="password"
                 value={formData.password}
                 onChange={handleInputChange}
+                required
                 className="w-full pr-12 px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teacher-500 focus:border-teacher-500 transition-all duration-200 text-sm"
-                placeholder="Leave empty for auto-generated password"
+                placeholder="Enter a secure password (min 6 characters)"
                 autoComplete="new-password"
               />
               <button
@@ -256,7 +287,6 @@ const AddStudentModal = ({ isOpen, onClose, onSubmit, instituteId, departmentId 
               </button>
             </div>
             {errors.password && <p className="mt-1 text-sm text-red-600">{errors.password}</p>}
-            <p className="mt-1 text-xs text-gray-500">Auto-generated if left empty</p>
           </div>
 
           {submitError && (
