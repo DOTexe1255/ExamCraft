@@ -32,6 +32,14 @@ const getExamType = (exam) => {
   return 'General assessment';
 };
 
+const formatDuration = (value) => {
+  const total = Number(value);
+  if (!Number.isFinite(total) || total <= 0) return '—';
+  const hours = Math.floor(total / 60);
+  const minutes = total % 60;
+  return [hours ? `${hours} hr${hours === 1 ? '' : 's'}` : null, minutes ? `${minutes} min` : null].filter(Boolean).join(' ');
+};
+
 const formatDate = (value) => {
   if (!value) return 'TBA';
 
@@ -83,6 +91,13 @@ const canStartExam = (exam) => {
 const getExamEndTime = (exam) => {
   if (!exam?.start_datetime) return null;
 
+  if (exam.end_datetime) {
+    const configuredEnd = new Date(exam.end_datetime);
+    if (!Number.isNaN(configuredEnd.getTime())) {
+      return configuredEnd;
+    }
+  }
+
   const startTime = new Date(exam.start_datetime).getTime();
   const durationMinutes = Number(exam.duration_minutes || 0);
 
@@ -94,15 +109,24 @@ const getExamEndTime = (exam) => {
 };
 
 const isCompletedExam = (exam, savedAttempt) => {
-  const endTime = getExamEndTime(exam);
+  const examWindowEnd = getExamEndTime(exam);
+  const attemptStartedAt = savedAttempt?.startedAt || exam.started_at;
+  const attemptEnd = attemptStartedAt
+    ? new Date(new Date(attemptStartedAt).getTime() + (Number(exam.duration_minutes || 0) * 60000))
+    : null;
   const submitted = Boolean(
     savedAttempt?.isSubmitted ||
+    exam.is_submitted ||
+    exam.submitted_at ||
+    exam.auto_submitted ||
     exam.assignment_status === 'SUBMITTED' ||
     exam.assignment_status === 'AUTO_SUBMITTED' ||
     exam.status === 'completed'
   );
 
-  return submitted || Boolean(endTime && Date.now() > endTime.getTime());
+  return submitted
+    || Boolean(attemptEnd && !Number.isNaN(attemptEnd.getTime()) && Date.now() > attemptEnd.getTime())
+    || Boolean(!attemptStartedAt && examWindowEnd && Date.now() > examWindowEnd.getTime());
 };
 
 const AvailableExams = ({ exams, loading }) => {
@@ -140,6 +164,9 @@ const AvailableExams = ({ exams, loading }) => {
     const end = getExamEndTime(exam);
 
     if (
+      exam.is_submitted ||
+      exam.submitted_at ||
+      exam.auto_submitted ||
       exam.assignment_status === 'SUBMITTED' ||
       exam.assignment_status === 'AUTO_SUBMITTED'
     ) {
@@ -202,7 +229,7 @@ const AvailableExams = ({ exams, loading }) => {
             const completed = isCompletedExam(exam, savedAttempt);
             const examStatus = completed ? 'completed' : (exam.status || 'scheduled');
             const actionLabel = completed
-              ? (savedAttempt?.isSubmitted || exam.assignment_status === 'SUBMITTED' || exam.status === 'completed' ? 'Completed' : 'Attempted')
+              ? 'Completed'
               : (canResume ? 'Resume Exam' : 'Start Exam');
             return (
               <article key={exam.exam_id} className="px-5 py-5 transition hover:bg-slate-50/80 sm:px-6">
@@ -223,7 +250,7 @@ const AvailableExams = ({ exams, loading }) => {
                       <p className="mt-1 text-sm text-slate-500">{exam.description || 'No description available.'}</p>
                       <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
                         <span>Type: {getExamType(exam)}</span>
-                        <span>Duration: {exam.duration_minutes || '—'} min</span>
+                        <span>Duration: {formatDuration(exam.duration_minutes)}</span>
                         <span>Marks: {exam.total_marks || '—'}</span>
                       </div>
                     </div>
@@ -260,7 +287,8 @@ const AvailableExams = ({ exams, loading }) => {
                       </div>
                       <div className="space-y-1">
                         <p><span className="font-semibold">Starts:</span> {formatDate(selectedExam.start_datetime)}</p>
-                        <p><span className="font-semibold">Duration:</span> {selectedExam.duration_minutes || '—'} mins</p>
+                        <p><span className="font-semibold">Available until:</span> {formatDate(selectedExam.end_datetime)}</p>
+                        <p><span className="font-semibold">Duration:</span> {formatDuration(selectedExam.duration_minutes)}</p>
                         <p><span className="font-semibold">Total marks:</span> {selectedExam.total_marks || '—'}</p>
                         <p><span className="font-semibold">Type:</span> {getExamType(selectedExam)}</p>
                       </div>

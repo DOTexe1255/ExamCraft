@@ -2,6 +2,23 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { requestJson } from "../../global/api";
 
+const formatDuration = (value) => {
+    const total = Number(value);
+    if (!Number.isFinite(total) || total <= 0) return "—";
+    const hours = Math.floor(total / 60);
+    const minutes = total % 60;
+    return [hours ? `${hours} hr${hours === 1 ? "" : "s"}` : null, minutes ? `${minutes} min` : null].filter(Boolean).join(" ");
+};
+
+const formatDateTime = (value) => {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "Not set";
+    return new Intl.DateTimeFormat("en-IN", {
+        dateStyle: "medium",
+        timeStyle: "short",
+    }).format(date);
+};
+
 const ExamInstructions = () => {
 
     const { examId } = useParams();
@@ -140,11 +157,11 @@ const ExamInstructions = () => {
             <div className="p-6 sm:p-10">
             <div className="grid gap-4 sm:grid-cols-3">
 
-                <div className="rounded-2xl bg-blue-50 p-4 text-blue-950"><p className="text-xs font-semibold uppercase tracking-wide text-blue-600">Duration</p><p className="mt-1 text-lg font-bold">{exam.duration_minutes} minutes</p></div>
+                <div className="rounded-2xl bg-blue-50 p-4 text-blue-950"><p className="text-xs font-semibold uppercase tracking-wide text-blue-600">Duration</p><p className="mt-1 text-lg font-bold">{formatDuration(exam.duration_minutes)}</p></div>
 
                 <div className="rounded-2xl bg-emerald-50 p-4 text-emerald-950"><p className="text-xs font-semibold uppercase tracking-wide text-emerald-600">Total marks</p><p className="mt-1 text-lg font-bold">{exam.total_marks}</p></div>
 
-                <div className="rounded-2xl bg-violet-50 p-4 text-violet-950"><p className="text-xs font-semibold uppercase tracking-wide text-violet-600">Exam window</p><p className="mt-1 text-sm font-bold">Ends: {exam.end_datetime}</p></div>
+                <div className="rounded-2xl bg-violet-50 p-4 text-violet-950"><p className="text-xs font-semibold uppercase tracking-wide text-violet-600">Exam window</p><p className="mt-1 text-sm font-bold">Ends: {formatDateTime(exam.end_datetime)}</p></div>
 
             </div>
 

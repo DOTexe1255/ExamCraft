@@ -9,7 +9,8 @@ const studentregisterSchema = Joi.object({
   role: Joi.string().valid('student').required(),
   institute_id: Joi.number().integer().required(),
   department_id: Joi.number().integer().required(),
-  phone: Joi.string().max(15).allow(null, '').optional()
+  phone: Joi.string().trim().min(1).max(15).required(),
+  semester: Joi.number().integer().min(1).max(12).required()
 });
 
 module.exports = studentregisterSchema;

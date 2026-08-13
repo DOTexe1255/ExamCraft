@@ -8,6 +8,16 @@ const departmentAdminRegisterSchema = require('../models/departmentAdminRegister
 const instituteAdminRegisterSchema = require('../models/instituteAdminRegisterSchema.js');
 const createFingerprint = require('../global/globalFunction.js');
 
+const ensureStudentSemesterColumn = async (conn) => {
+  const [columns] = await conn.execute(
+    `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'semester'`
+  );
+  if (!columns.length) {
+    await conn.execute('ALTER TABLE users ADD COLUMN semester TINYINT NULL AFTER phone');
+  }
+};
+
 // ====================== INSTITUTE ADMIN REGISTRATION ======================
 router.post('/institute-admin-register', async (req, res) => {
   const { error, value } = instituteAdminRegisterSchema.validate(req.body, {
@@ -168,6 +178,7 @@ router.post('/student-register', async (req, res) => {
     institute_id,
     department_id,
     phone,
+    semester,
   } = value;
 
   let conn;
@@ -203,12 +214,13 @@ router.post('/student-register', async (req, res) => {
     }
 
     const password_hash = await bcrypt.hash(password, 10);
+    await ensureStudentSemesterColumn(conn);
 
     const [result] = await conn.execute(
       `INSERT INTO users
-       (institute_id, department_id, email, password_hash, role, first_name, last_name, phone, is_active)
-       VALUES (?, ?, ?, ?, 'student', ?, ?, ?, 1)`,
-      [institute_id, department_id, email, password_hash, first_name, last_name, phone || null]
+       (institute_id, department_id, email, password_hash, role, first_name, last_name, phone, semester, is_active)
+       VALUES (?, ?, ?, ?, 'student', ?, ?, ?, ?, 1)`,
+      [institute_id, department_id, email, password_hash, first_name, last_name, phone, semester]
     );
 
     return res.status(201).json({

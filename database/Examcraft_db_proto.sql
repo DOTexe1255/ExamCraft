@@ -38,6 +38,7 @@ CREATE TABLE IF NOT EXISTS users (
     first_name VARCHAR(50) NOT NULL,
     last_name VARCHAR(50) NOT NULL,
     phone VARCHAR(15),
+    semester TINYINT NULL,
     is_active BOOLEAN DEFAULT TRUE,
     last_login TIMESTAMP NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -626,3 +627,7 @@ ADD COLUMN block_print BOOLEAN DEFAULT TRUE AFTER block_devtools,
 ADD COLUMN block_text_selection BOOLEAN DEFAULT TRUE AFTER block_print,
 ADD COLUMN allow_paste_in_coding BOOLEAN DEFAULT FALSE AFTER block_text_selection,
 ADD COLUMN auto_submit_on_violation BOOLEAN DEFAULT TRUE AFTER max_idle_warnings;
+
+-- Store each student's current semester.
+ALTER TABLE users
+ADD COLUMN IF NOT EXISTS semester TINYINT NULL AFTER phone;

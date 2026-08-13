@@ -8,6 +8,6 @@ const departmentAdminRegisterSchema = Joi.object({
     role: Joi.string().valid('department').required(),
     institute_id: Joi.number().integer().required(),
     department_id: Joi.number().integer().required(),
-    phone: Joi.string().max(15).allow(null, '').optional()
+    phone: Joi.string().trim().min(1).max(15).required()
 });
 module.exports = departmentAdminRegisterSchema;
