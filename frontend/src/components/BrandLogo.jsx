@@ -1,4 +1,37 @@
-import React from 'react';
+import React from "react";
 
-const BrandLogo = ({ compact = false, dark = false }) => <span className="inline-flex items-center gap-2.5"><span className={`grid place-items-center rounded-xl bg-gradient-to-br from-indigo-400 via-violet-500 to-fuchsia-600 shadow-lg shadow-indigo-950/30 ${compact ? 'h-7 w-7' : 'h-10 w-10'}`}><svg className={compact ? 'h-4 w-4' : 'h-6 w-6'} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.9" d="M5 4.75A2.75 2.75 0 017.75 2h8.5A2.75 2.75 0 0119 4.75v14.5A2.75 2.75 0 0116.25 22h-8.5A2.75 2.75 0 015 19.25V4.75z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.9" d="M8.5 8.5h7M8.5 12h3M8.5 15.5l1.5 1.5 4-4" /></svg></span>{!compact && <span className={`text-lg font-semibold tracking-tight ${dark ? 'text-slate-900' : 'text-white'}`}>Exam<span className="text-indigo-300">Craft</span></span>}</span>;
+const BrandLogo = ({ compact = false, dark = false }) => (
+  <span className="inline-flex items-center gap-2.5">
+    <span
+      className={`grid place-items-center rounded-xl bg-gradient-to-br from-indigo-400 via-violet-500 to-fuchsia-600 shadow-lg shadow-indigo-950/30 ${compact ? "h-7 w-7" : "h-10 w-10"}`}
+    >
+      <svg
+        className={compact ? "h-4 w-4" : "h-6 w-6"}
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24"
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth="1.9"
+          d="M5 4.75A2.75 2.75 0 017.75 2h8.5A2.75 2.75 0 0119 4.75v14.5A2.75 2.75 0 0116.25 22h-8.5A2.75 2.75 0 015 19.25V4.75z"
+        />
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth="1.9"
+          d="M8.5 8.5h7M8.5 12h3M8.5 15.5l1.5 1.5 4-4"
+        />
+      </svg>
+    </span>
+    {!compact && (
+      <span
+        className={`text-lg font-semibold tracking-tight ${dark ? "text-slate-900" : "text-white"}`}
+      >
+        Exam<span className="text-indigo-300">Craft</span>
+      </span>
+    )}
+  </span>
+);
 export default BrandLogo;
