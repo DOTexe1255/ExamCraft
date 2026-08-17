@@ -30,6 +30,6 @@ app.use('/api/question-banks', require('./routes/questionBanks'));
 app.use('/api/user', require('./routes/userdata'));
 app.use('/api/student/dashboard', require('./routes/studentDashboard'));
 
-app.listen(port, '0.0.0.0', () => {
+app.listen(port, () => {
   console.log(`Express server listening at http://localhost:${port}`);
 });
