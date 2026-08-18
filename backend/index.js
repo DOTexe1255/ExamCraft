@@ -7,10 +7,18 @@ const cookieParser = require('cookie-parser');
 
 const app = express();
 const port = process.env.PORT || 3000;
+const frontendOrigins = (process.env.FRONTEND_ORIGINS
+  || process.env.FRONTEND_ORIGIN
+  || `http://localhost:${process.env.FRONTEND_PORT || 5173}`)
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
 
 app.use(cors({
-  origin: `http://localhost:${process.env.FRONTEND_PORT || 5173}`,
-  credentials: true
+  // Credentialed requests cannot use a wildcard origin.  CORS will echo an
+  // explicitly allowed requesting origin and also handle OPTIONS preflights.
+  origin: frontendOrigins,
+  credentials: true,
 }));
 
 app.use(express.json());
