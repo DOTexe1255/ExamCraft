@@ -1,66 +1,81 @@
 import React from 'react';
 
+const TIPS = [
+  {
+    id: 1,
+    text: "Read all questions carefully before starting.",
+    dotClass: "bg-blue-500 group-hover:scale-125",
+    baseClass: "bg-white border-slate-200 hover:border-blue-300 hover:bg-blue-50/70",
+    textClass: "text-slate-700 group-hover:text-blue-900",
+  },
+  {
+    id: 2,
+    text: "Manage your time wisely across all sections.",
+    dotClass: "bg-emerald-500 group-hover:scale-125",
+    baseClass: "bg-white border-slate-200 hover:border-emerald-300 hover:bg-emerald-50/70",
+    textClass: "text-slate-700 group-hover:text-emerald-900",
+  },
+  {
+    id: 3,
+    text: "For coding questions, test your solutions thoroughly.",
+    dotClass: "bg-purple-500 group-hover:scale-125",
+    baseClass: "bg-white border-slate-200 hover:border-purple-300 hover:bg-purple-50/70",
+    textClass: "text-slate-700 group-hover:text-purple-900",
+  },
+  {
+    id: 4,
+    text: "Review all your answers before final submission.",
+    dotClass: "bg-amber-500 group-hover:scale-125",
+    baseClass: "bg-white border-slate-200 hover:border-amber-300 hover:bg-amber-50/70",
+    textClass: "text-slate-700 group-hover:text-amber-900",
+  },
+  {
+    id: 5,
+    text: "Stay calm and focused throughout the exam. Good luck!",
+    isHighlight: true,
+  }
+];
+
 const ExamTip = () => {
   return (
-    <>
-      {/* Exam Tips Content */}
-      <div className="space-y-4 p-1">
-        {/* Tip 1 */}
-        <div className="flex items-start gap-3 p-4 bg-student-50/50 border border-student-100 
-                        rounded-xl hover:bg-student-50 hover:border-student-200 
-                        transition-all duration-200 group hover:shadow-sm">
-          <div className="w-2.5 h-2.5 bg-student-500 rounded-full mt-1.5 flex-shrink-0 
-                          group-hover:bg-student-600 animate-pulse"></div>
-          <p className="text-sm text-gray-700 leading-relaxed group-hover:text-student-800">
-            Read all questions carefully before starting
-          </p>
-        </div>
+    <div className="space-y-3 font-sans">
+      {TIPS.map((tip) => {
+        
+        // Render the highlighted "Good luck" tip differently
+        if (tip.isHighlight) {
+          return (
+            <div
+              key={tip.id}
+              className="group flex items-start gap-3 rounded-xl border-2 border-blue-200 bg-gradient-to-r from-blue-50 to-indigo-50 p-4 transition-all duration-300 hover:shadow-sm"
+            >
+              <div className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white shadow-sm transition-transform duration-300 group-hover:scale-110">
+                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <p className="text-sm font-semibold leading-relaxed text-blue-900">
+                {tip.text}
+              </p>
+            </div>
+          );
+        }
 
-        {/* Tip 2 */}
-        <div className="flex items-start gap-3 p-4 bg-student-50/30 border border-student-100 
-                        rounded-xl hover:bg-student-50 hover:border-student-200 
-                        transition-all duration-200 group hover:shadow-sm">
-          <div className="w-2.5 h-2.5 bg-status-active rounded-full mt-1.5 flex-shrink-0 
-                          group-hover:scale-110 transition-transform duration-200"></div>
-          <p className="text-sm text-gray-700 leading-relaxed group-hover:text-student-800">
-            Manage your time wisely across all questions
-          </p>
-        </div>
-
-        {/* Tip 3 */}
-        <div className="flex items-start gap-3 p-4 bg-student-50/50 border border-student-100 
-                        rounded-xl hover:bg-student-50 hover:border-student-200 
-                        transition-all duration-200 group hover:shadow-sm">
-          <div className="w-2.5 h-2.5 bg-status-scheduled rounded-full mt-1.5 flex-shrink-0 
-                          group-hover:bg-status-scheduled/80 transition-all duration-200"></div>
-          <p className="text-sm text-gray-700 leading-relaxed group-hover:text-student-800">
-            For coding questions, test your solutions thoroughly
-          </p>
-        </div>
-
-        {/* Tip 4 */}
-        <div className="flex items-start gap-3 p-4 bg-student-50/30 border border-student-100 
-                        rounded-xl hover:bg-student-50 hover:border-student-200 
-                        transition-all duration-200 group hover:shadow-sm">
-          <div className="w-2.5 h-2.5 bg-status-completed rounded-full mt-1.5 flex-shrink-0 
-                          group-hover:rotate-12 transition-all duration-300"></div>
-          <p className="text-sm text-gray-700 leading-relaxed group-hover:text-student-800">
-            Review your answers before final submission
-          </p>
-        </div>
-
-        {/* Tip 5 */}
-        <div className="flex items-start gap-3 p-4 bg-gradient-to-r from-student-50/70 to-student-100/50 
-                        border-2 border-student-200 rounded-xl hover:shadow-dashboard 
-                        transition-all duration-300 group hover:from-student-50 hover:to-student-100">
-          <div className="w-2.5 h-2.5 bg-white border-2 border-student-500 rounded-full mt-1.5 
-                          flex-shrink-0 shadow-sm group-hover:scale-125 transition-all duration-300"></div>
-          <p className="text-sm font-semibold text-gray-800 leading-relaxed group-hover:text-student-700">
-            Stay calm and focused throughout the exam
-          </p>
-        </div>
-      </div>
-    </>
+        // Render standard tips
+        return (
+          <div
+            key={tip.id}
+            className={`group flex items-start gap-3 rounded-xl border p-3.5 transition-all duration-200 hover:shadow-sm ${tip.baseClass}`}
+          >
+            <div
+              className={`mt-1.5 h-2 w-2 shrink-0 rounded-full transition-transform duration-300 ${tip.dotClass}`}
+            />
+            <p className={`text-sm leading-relaxed transition-colors duration-200 ${tip.textClass}`}>
+              {tip.text}
+            </p>
+          </div>
+        );
+      })}
+    </div>
   );
 };
 

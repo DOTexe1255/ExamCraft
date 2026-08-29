@@ -6,8 +6,8 @@ export default defineConfig({
   server: {
     host: true,  // Allow proxy from Nginx (any host)
     hmr: {
-      host: 'localhost',
-      host: 'explicitly-full-crawdad.ngrok-free.app'  // Fix HMR with proxy
+      host: 'localhost'
+      // host: 'explicitly-full-crawdad.ngrok-free.app'  // Fix HMR with proxy
     }
   }
 })
