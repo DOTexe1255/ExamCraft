@@ -233,8 +233,6 @@ flowchart LR
 - Advanced performance analytics
 - Online video proctoring
 - Facial recognition-based verification
-- Mobile application
-- Automated certificate generation
 - Enhanced coding sandbox
 - Detailed student performance reports
 - Integration with college ERP systems
