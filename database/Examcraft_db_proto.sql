@@ -532,7 +532,7 @@ JOIN exams e ON ea.exam_id = e.exam_id;
 
 -- ------------------------------------------------- Sample User Credentials:  ------------------------------------
 
--- Admin: admin@techinst.com / password123
+-- Admin: admin@techinst.com / password
 -- CS Head: cshead@techinst.com / password123  
 -- Students: john.doe@techinst.com / password123
 

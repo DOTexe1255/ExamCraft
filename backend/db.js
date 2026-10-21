@@ -24,12 +24,10 @@ const createPool = () => {
     keepAliveInitialDelay: 10000,
   };
 
-  if (process.env.MYSQL_CA_CERT_PATH) {
-    config.ssl = {
-      ca: fs.readFileSync(process.env.MYSQL_CA_CERT_PATH),
-    };
-  } else if (process.env.MYSQL_SSL === 'true') {
-    config.ssl = { rejectUnauthorized: true };
+  if (process.env.MYSQL_SSL === 'true') {
+    config.ssl = process.env.MYSQL_CA_CERT_PATH
+      ? { ca: fs.readFileSync(process.env.MYSQL_CA_CERT_PATH) }
+      : { rejectUnauthorized: true };
   }
 
   console.log('MySQL pool config in use:', {
